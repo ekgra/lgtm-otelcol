@@ -1,0 +1,1679 @@
+---
+# Source: lgtm-distributed/charts/grafana/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: lgtm-grafana
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: grafana-7.3.12
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "10.4.3"
+    app.kubernetes.io/managed-by: Helm
+type: Opaque
+data:
+  
+  admin-user: "YWRtaW4="
+  admin-password: "M1VvOWNkaWNOdkNDT1dDZ1JDRTc0dzF5elBMWlIwU003ZmZkMWJCRA=="
+  ldap-toml: ""
+---
+# Source: lgtm-distributed/charts/grafana/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lgtm-grafana
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: grafana-7.3.12
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "10.4.3"
+    app.kubernetes.io/managed-by: Helm
+data:
+  
+  grafana.ini: |
+    [analytics]
+    check_for_updates = true
+    [grafana_net]
+    url = https://grafana.net
+    [log]
+    mode = console
+    [paths]
+    data = /var/lib/grafana/
+    logs = /var/log/grafana
+    plugins = /var/lib/grafana/plugins
+    provisioning = /etc/grafana/provisioning
+    [server]
+    domain = ''
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+    - isDefault: false
+      jsonData:
+        lokiSearch:
+          datasourceUid: loki
+        serviceMap:
+          datasourceUid: prom
+        tracesToLogsV2:
+          datasourceUid: loki
+        tracesToMetrics:
+          datasourceUid: prom
+      name: Tempo
+      type: tempo
+      uid: tempo
+      url: http://lgtm-tempo-query-frontend:3200
+---
+# Source: lgtm-distributed/charts/otelcol/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lgtm-otelcol
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: otelcol-0.133.0
+    app.kubernetes.io/name: otelcol
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "0.134.1"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: opentelemetry-collector
+    app.kubernetes.io/component: standalone-collector
+data:
+  relay: |
+    exporters:
+      debug: {}
+      otlphttp:
+        endpoint: http://lgtm-tempo-distributor:4318
+        tls:
+          insecure: true
+    extensions:
+      health_check:
+        endpoint: ${env:MY_POD_IP}:13133
+    processors:
+      batch: {}
+      memory_limiter:
+        check_interval: 5s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+    receivers:
+      jaeger:
+        protocols:
+          grpc:
+            endpoint: ${env:MY_POD_IP}:14250
+          thrift_compact:
+            endpoint: ${env:MY_POD_IP}:6831
+          thrift_http:
+            endpoint: ${env:MY_POD_IP}:14268
+      otlp:
+        protocols:
+          grpc:
+            endpoint: ${env:MY_POD_IP}:4317
+          http:
+            endpoint: ${env:MY_POD_IP}:4318
+      prometheus:
+        config:
+          scrape_configs:
+          - job_name: opentelemetry-collector
+            scrape_interval: 10s
+            static_configs:
+            - targets:
+              - ${env:MY_POD_IP}:8888
+      zipkin:
+        endpoint: ${env:MY_POD_IP}:9411
+    service:
+      extensions:
+      - health_check
+      pipelines:
+        logs:
+          exporters:
+          - debug
+          processors:
+          - memory_limiter
+          - batch
+          receivers:
+          - otlp
+        metrics:
+          exporters:
+          - debug
+          processors:
+          - memory_limiter
+          - batch
+          receivers:
+          - otlp
+          - prometheus
+        traces:
+          exporters:
+          - otlphttp
+          - debug
+          processors:
+          - memory_limiter
+          - batch
+          receivers:
+          - otlp
+          - jaeger
+          - zipkin
+      telemetry:
+        metrics:
+          readers:
+          - pull:
+              exporter:
+                prometheus:
+                  host: ${env:MY_POD_IP}
+                  port: 8888
+---
+# Source: lgtm-distributed/charts/tempo/templates/configmap-runtime.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lgtm-tempo-runtime
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: "lgtm-poc-8"
+data:
+  overrides.yaml: |
+    
+    overrides:
+      null
+---
+# Source: lgtm-distributed/charts/tempo/templates/configmap-tempo.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lgtm-tempo-config
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: "lgtm-poc-8"
+data:
+  tempo-query.yaml: |
+    backend: 127.0.0.1:3200
+    
+  tempo.yaml: |
+    
+    cache:
+      caches: []
+    compactor:
+      compaction:
+        block_retention: 48h
+        compacted_block_retention: 1h
+        compaction_cycle: 30s
+        compaction_window: 1h
+        max_block_bytes: 107374182400
+        max_compaction_objects: 6000000
+        max_time_per_tenant: 5m
+        retention_concurrency: 10
+        v2_in_buffer_bytes: 5242880
+        v2_out_buffer_bytes: 20971520
+        v2_prefetch_traces_count: 1000
+      ring:
+        kvstore:
+          store: memberlist
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+      ring:
+        kvstore:
+          store: memberlist
+    ingester:
+      lifecycler:
+        ring:
+          kvstore:
+            store: memberlist
+          replication_factor: 3
+        tokens_file_path: /var/tempo/tokens.json
+    memberlist:
+      abort_if_cluster_join_fails: false
+      bind_addr: []
+      bind_port: 7946
+      cluster_label: 'lgtm.lgtm-poc-8'
+      gossip_interval: 1s
+      gossip_nodes: 2
+      gossip_to_dead_nodes_time: 30s
+      join_members:
+      - dns+lgtm-tempo-gossip-ring:7946
+      leave_timeout: 5s
+      left_ingesters_timeout: 5m
+      max_join_backoff: 1m
+      max_join_retries: 10
+      min_join_backoff: 1s
+      node_name: ""
+      packet_dial_timeout: 5s
+      packet_write_timeout: 5s
+      pull_push_interval: 30s
+      randomize_node_name: true
+      rejoin_interval: 0s
+      retransmit_factor: 2
+      stream_timeout: 10s
+    multitenancy_enabled: false
+    overrides:
+      defaults: {}
+      per_tenant_override_config: /runtime-config/overrides.yaml
+    querier:
+      frontend_worker:
+        frontend_address: lgtm-tempo-query-frontend-discovery:9095
+      max_concurrent_queries: 20
+      search:
+        query_timeout: 30s
+      trace_by_id:
+        query_timeout: 10s
+    query_frontend:
+      max_outstanding_per_tenant: 2000
+      max_retries: 2
+      metrics:
+        concurrent_jobs: 1000
+        duration_slo: 0s
+        interval: 5m
+        max_duration: 3h
+        query_backend_after: 30m
+        target_bytes_per_job: 104857600
+        throughput_bytes_slo: 0
+      search:
+        concurrent_jobs: 1000
+        max_spans_per_span_set: 100
+        target_bytes_per_job: 104857600
+      trace_by_id:
+        query_shards: 50
+    server:
+      grpc_server_max_recv_msg_size: 4194304
+      grpc_server_max_send_msg_size: 4194304
+      http_listen_port: 3200
+      http_server_read_timeout: 30s
+      http_server_write_timeout: 30s
+      log_format: logfmt
+      log_level: info
+    storage:
+      trace:
+        backend: local
+        blocklist_poll: 5m
+        local:
+          path: /var/tempo/traces
+        pool:
+          max_workers: 400
+          queue_depth: 20000
+        search:
+          prefetch_trace_count: 1000
+        wal:
+          path: /var/tempo/wal
+    usage_report:
+      reporting_enabled: true
+---
+# Source: lgtm-distributed/charts/grafana/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    helm.sh/chart: grafana-7.3.12
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "10.4.3"
+    app.kubernetes.io/managed-by: Helm
+  name: lgtm-grafana-clusterrole
+rules: []
+---
+# Source: lgtm-distributed/charts/grafana/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: lgtm-grafana-clusterrolebinding
+  labels:
+    helm.sh/chart: grafana-7.3.12
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "10.4.3"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+  - kind: ServiceAccount
+    name: lgtm
+    namespace: lgtm-poc-8
+roleRef:
+  kind: ClusterRole
+  name: lgtm-grafana-clusterrole
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: lgtm-distributed/charts/grafana/templates/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lgtm-grafana
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: grafana-7.3.12
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "10.4.3"
+    app.kubernetes.io/managed-by: Helm
+rules: []
+---
+# Source: lgtm-distributed/charts/grafana/templates/rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lgtm-grafana
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: grafana-7.3.12
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "10.4.3"
+    app.kubernetes.io/managed-by: Helm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: lgtm-grafana
+subjects:
+- kind: ServiceAccount
+  name: lgtm
+  namespace: lgtm-poc-8
+---
+# Source: lgtm-distributed/charts/grafana/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-grafana
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: grafana-7.3.12
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "10.4.3"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - name: service
+      port: 80
+      protocol: TCP
+      targetPort: 3000
+  selector:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: lgtm
+---
+# Source: lgtm-distributed/charts/otelcol/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-otelcol
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: otelcol-0.133.0
+    app.kubernetes.io/name: otelcol
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "0.134.1"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: opentelemetry-collector
+    app.kubernetes.io/component: standalone-collector
+    component: standalone-collector
+spec:
+  type: ClusterIP
+  ports:
+    
+    - name: jaeger-compact
+      port: 6831
+      targetPort: 6831
+      protocol: UDP
+    - name: jaeger-grpc
+      port: 14250
+      targetPort: 14250
+      protocol: TCP
+    - name: jaeger-thrift
+      port: 14268
+      targetPort: 14268
+      protocol: TCP
+    - name: otlp
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+      appProtocol: grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+    - name: zipkin
+      port: 9411
+      targetPort: 9411
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: otelcol
+    app.kubernetes.io/instance: lgtm
+    component: standalone-collector
+  internalTrafficPolicy: Cluster
+---
+# Source: lgtm-distributed/charts/tempo/templates/compactor/service-compactor.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-tempo-compactor
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: compactor
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - name: http-metrics
+      port: 3200
+      targetPort: 3200
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: compactor
+  ipFamilies: [IPv4]
+  ipFamilyPolicy: SingleStack
+---
+# Source: lgtm-distributed/charts/tempo/templates/distributor/service-distributor-discovery.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-tempo-distributor-discovery
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: distributor
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+    prometheus.io/service-monitor: "false"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http-metrics
+      port: 3200
+      targetPort: http-metrics
+    - name: distributor-otlp-http
+      port: 4318
+      protocol: TCP
+      targetPort: otlp-http
+    - name: grpc-distributor-otlp
+      port: 4317
+      protocol: TCP
+      targetPort: grpc-otlp
+    - name: distributor-otlp-legacy
+      port: 55680
+      protocol: TCP
+      targetPort: grpc-otlp
+  selector:
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: distributor
+---
+# Source: lgtm-distributed/charts/tempo/templates/distributor/service-distributor.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-tempo-distributor
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: distributor
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  internalTrafficPolicy: Cluster
+  type: ClusterIP
+  ipFamilies: [IPv4]
+  ipFamilyPolicy: SingleStack
+  ports:
+    - name: http-metrics
+      port: 3200
+      targetPort: http-metrics
+    - name: grpc
+      port: 9095
+      protocol: TCP
+      targetPort: 9095
+    - name: distributor-otlp-http
+      port: 4318
+      protocol: TCP
+      targetPort: otlp-http
+    - name: grpc-distributor-otlp
+      port: 4317
+      protocol: TCP
+      targetPort: grpc-otlp
+    - name: distributor-otlp-legacy
+      port: 55680
+      protocol: TCP
+      targetPort: grpc-otlp
+  selector:
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: distributor
+---
+# Source: lgtm-distributed/charts/tempo/templates/gossip-ring/service-gossip-ring.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-tempo-gossip-ring
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: gossip-ring
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ipFamilies: [IPv4]
+  ipFamilyPolicy: SingleStack
+  ports:
+    - name: gossip-ring
+      port: 7946
+      protocol: TCP
+      targetPort: 7946
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/part-of: memberlist
+---
+# Source: lgtm-distributed/charts/tempo/templates/ingester/service-ingester-discovery.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-tempo-ingester-discovery
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: ingester
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+    prometheus.io/service-monitor: "false"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http-metrics
+      port: 3200
+      protocol: TCP
+      targetPort: 3200
+    - name: grpc
+      port: 9095
+      protocol: TCP
+      targetPort: 9095
+  selector:
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: ingester
+---
+# Source: lgtm-distributed/charts/tempo/templates/ingester/service-ingester.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-tempo-ingester
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: ingester
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  internalTrafficPolicy: Cluster
+  ipFamilies: [IPv4]
+  ipFamilyPolicy: SingleStack
+  ports:
+    - name: http-metrics
+      port: 3200
+      protocol: TCP
+      targetPort: 3200
+    - name: grpc
+      port: 9095
+      protocol: TCP
+      targetPort: 9095
+  selector:
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: ingester
+---
+# Source: lgtm-distributed/charts/tempo/templates/querier/service-querier.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-tempo-querier
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: querier
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  ipFamilies: [IPv4]
+  ipFamilyPolicy: SingleStack
+  ports:
+    - name: http-metrics
+      port: 3200
+      protocol: TCP
+      targetPort: 3200
+    - name: grpc
+      port: 9095
+      protocol: TCP
+      targetPort: 9095
+  selector:
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: querier
+---
+# Source: lgtm-distributed/charts/tempo/templates/query-frontend/service-query-frontend-discovery.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-tempo-query-frontend-discovery
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: query-frontend
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http
+      port: 3200
+      targetPort: 3200
+    - name: grpc
+      port: 9095
+      protocol: TCP
+      targetPort: 9095
+    - name: grpclb
+      port: 9096
+      protocol: TCP
+      targetPort: grpc
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: query-frontend
+---
+# Source: lgtm-distributed/charts/tempo/templates/query-frontend/service-query-frontend.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-tempo-query-frontend
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: query-frontend
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ipFamilies: [IPv4]
+  ipFamilyPolicy: SingleStack
+  ports:
+    - name: http-metrics
+      port: 3200
+      targetPort: 3200
+    - name: grpc
+      port: 9095
+      protocol: TCP
+      targetPort: 9095
+  selector:
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: query-frontend
+---
+# Source: lgtm-distributed/charts/grafana/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lgtm-grafana
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: grafana-7.3.12
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "10.4.3"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+      app.kubernetes.io/instance: lgtm
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grafana
+        app.kubernetes.io/instance: lgtm
+      annotations:
+        checksum/config: 433ec58ecf4171ffc86fda98b2e1400b6d6817dc3f468bd0a0ae3278ec0703f1
+        checksum/sc-dashboard-provider-config: 593c0a8778b83f11fe80ccb21dfb20bc46705e2be3178df1dc4c89d164c8cd9c
+        checksum/secret: 675d65106c7202dbe6c680aeab0c23dcb0f6a27c6a2d702356e4710084badc04
+        kubectl.kubernetes.io/default-container: grafana
+    spec:
+      
+      serviceAccountName: lgtm
+      automountServiceAccountToken: true
+      securityContext:
+        fsGroup: 472
+        runAsGroup: 472
+        runAsNonRoot: true
+        runAsUser: 472
+      enableServiceLinks: true
+      containers:
+        - name: grafana
+          image: "docker.io/grafana/grafana:10.4.3"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: config
+              mountPath: "/etc/grafana/grafana.ini"
+              subPath: grafana.ini
+            - name: storage
+              mountPath: "/var/lib/grafana"
+            - name: config
+              mountPath: "/etc/grafana/provisioning/datasources/datasources.yaml"
+              subPath: "datasources.yaml"
+          ports:
+            - name: grafana
+              containerPort: 3000
+              protocol: TCP
+            - name: gossip-tcp
+              containerPort: 9094
+              protocol: TCP
+            - name: gossip-udp
+              containerPort: 9094
+              protocol: UDP
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: lgtm-grafana
+                  key: admin-user
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lgtm-grafana
+                  key: admin-password
+            - name: GF_PATHS_DATA
+              value: /var/lib/grafana/
+            - name: GF_PATHS_LOGS
+              value: /var/log/grafana
+            - name: GF_PATHS_PLUGINS
+              value: /var/lib/grafana/plugins
+            - name: GF_PATHS_PROVISIONING
+              value: /etc/grafana/provisioning
+          livenessProbe:
+            failureThreshold: 10
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 60
+            timeoutSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: lgtm-grafana
+        - name: storage
+          emptyDir: {}
+---
+# Source: lgtm-distributed/charts/otelcol/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lgtm-otelcol
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: otelcol-0.133.0
+    app.kubernetes.io/name: otelcol
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "0.134.1"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: opentelemetry-collector
+    app.kubernetes.io/component: standalone-collector
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otelcol
+      app.kubernetes.io/instance: lgtm
+      component: standalone-collector
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        checksum/config: 254ee1bffa45ddc046e117f856f0f91ed82cf72293e6a48b934674028a17e103
+        
+      labels:
+        app.kubernetes.io/name: otelcol
+        app.kubernetes.io/instance: lgtm
+        component: standalone-collector
+        
+    spec:
+      
+      serviceAccountName: lgtm
+      automountServiceAccountToken: true
+      securityContext:
+        {}
+      containers:
+        - name: otelcol
+          command:
+            - /otelcol-k8s
+          args:
+            - --config=/conf/relay.yaml
+          securityContext:
+            {}
+          image: "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s:0.134.1"
+          imagePullPolicy: IfNotPresent
+          ports:
+            
+            - name: jaeger-compact
+              containerPort: 6831
+              protocol: UDP
+            - name: jaeger-grpc
+              containerPort: 14250
+              protocol: TCP
+            - name: jaeger-thrift
+              containerPort: 14268
+              protocol: TCP
+            - name: otlp
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: zipkin
+              containerPort: 9411
+              protocol: TCP
+          env:
+            - name: MY_POD_IP
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.podIP
+            - name: GOMEMLIMIT
+              value: "102MiB"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 13133
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /conf
+              name: otelcol-configmap
+      volumes:
+        - name: otelcol-configmap
+          configMap:
+            name: lgtm-otelcol
+            items:
+              - key: relay
+                path: relay.yaml
+      hostNetwork: false
+---
+# Source: lgtm-distributed/charts/tempo/templates/compactor/deployment-compactor.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lgtm-tempo-compactor
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: compactor
+    app.kubernetes.io/part-of: memberlist
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  minReadySeconds: 10
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+      app.kubernetes.io/instance: lgtm
+      app.kubernetes.io/component: compactor
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: tempo-1.42.2
+        app.kubernetes.io/name: tempo
+        app.kubernetes.io/instance: lgtm
+        app.kubernetes.io/version: "2.8.0"
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/component: compactor
+        app.kubernetes.io/part-of: memberlist
+      annotations:
+        checksum/config: 96a50b362fdee95ba985cbe141e40c41f2121a240784215d2148ffce62d12ce4
+    spec:
+      serviceAccountName: lgtm
+      securityContext:
+        fsGroup: 1000
+      enableServiceLinks: false
+      
+      initContainers:
+        []
+      containers:
+        - args:
+            - -target=compactor
+            - -config.file=/conf/tempo.yaml
+            - -mem-ballast-size-mbs=1024
+          image: docker.io/grafana/tempo:2.8.0
+          imagePullPolicy: IfNotPresent
+          name: compactor
+          ports:
+            - containerPort: 3200
+              name: http-metrics
+            - containerPort: 7946
+              name: http-memberlist
+          resources:
+            {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumeMounts:
+            - mountPath: /conf
+              name: config
+            - mountPath: /runtime-config
+              name: runtime-config
+            - mountPath: /var/tempo
+              name: tempo-compactor-store
+      terminationGracePeriodSeconds: 30
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: tempo
+                  app.kubernetes.io/instance: lgtm
+                  app.kubernetes.io/component: compactor
+              topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: tempo
+                    app.kubernetes.io/instance: lgtm
+                    app.kubernetes.io/component: compactor
+                topologyKey: topology.kubernetes.io/zone
+        
+      volumes:
+        - name: config
+          configMap:
+            name: lgtm-tempo-config
+            items:
+              - key: "tempo.yaml"
+                path: "tempo.yaml"
+        - name: runtime-config
+          configMap:
+            name: lgtm-tempo-runtime
+            items:
+              - key: "overrides.yaml"
+                path: "overrides.yaml"
+        - name: tempo-compactor-store
+          emptyDir: {}
+---
+# Source: lgtm-distributed/charts/tempo/templates/distributor/deployment-distributor.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lgtm-tempo-distributor
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: distributor
+    app.kubernetes.io/part-of: memberlist
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  minReadySeconds: 10
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+      app.kubernetes.io/instance: lgtm
+      app.kubernetes.io/component: distributor
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1      
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: tempo-1.42.2
+        app.kubernetes.io/name: tempo
+        app.kubernetes.io/instance: lgtm
+        app.kubernetes.io/version: "2.8.0"
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/component: distributor
+        app.kubernetes.io/part-of: memberlist
+      annotations:
+        checksum/config: 96a50b362fdee95ba985cbe141e40c41f2121a240784215d2148ffce62d12ce4
+    spec:
+      serviceAccountName: lgtm
+      securityContext:
+        fsGroup: 1000
+      enableServiceLinks: false
+      
+      containers:
+        - args:
+            - -target=distributor
+            - -config.file=/conf/tempo.yaml
+            - -mem-ballast-size-mbs=1024
+          image: docker.io/grafana/tempo:2.8.0
+          imagePullPolicy: IfNotPresent
+          name: distributor
+          ports:
+            - containerPort: 7946
+              name: http-memberlist
+              protocol: TCP
+            - containerPort: 3200
+              name: http-metrics
+            - containerPort: 4318
+              name: otlp-http
+              protocol: TCP
+            - containerPort: 4317
+              name: grpc-otlp
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http-metrics
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumeMounts:
+            - mountPath: /conf
+              name: config
+            - mountPath: /runtime-config
+              name: runtime-config
+            - mountPath: /var/tempo
+              name: tempo-distributor-store
+      terminationGracePeriodSeconds: 30
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: tempo
+              app.kubernetes.io/instance: lgtm
+              app.kubernetes.io/component: distributor
+        
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: tempo
+                  app.kubernetes.io/instance: lgtm
+                  app.kubernetes.io/component: distributor
+              topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: tempo
+                    app.kubernetes.io/instance: lgtm
+                    app.kubernetes.io/component: distributor
+                topologyKey: topology.kubernetes.io/zone
+        
+      volumes:
+        - name: config
+          configMap:
+            name: lgtm-tempo-config
+            items:
+              - key: "tempo.yaml"
+                path: "tempo.yaml"
+        - name: runtime-config
+          configMap:
+            name: lgtm-tempo-runtime
+            items:
+              - key: "overrides.yaml"
+                path: "overrides.yaml"
+        - name: tempo-distributor-store
+          emptyDir: {}
+---
+# Source: lgtm-distributed/charts/tempo/templates/querier/deployment-querier.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lgtm-tempo-querier
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: querier
+    app.kubernetes.io/part-of: memberlist
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  minReadySeconds: 10
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+      app.kubernetes.io/instance: lgtm
+      app.kubernetes.io/component: querier
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: tempo-1.42.2
+        app.kubernetes.io/name: tempo
+        app.kubernetes.io/instance: lgtm
+        app.kubernetes.io/version: "2.8.0"
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/component: querier
+        app.kubernetes.io/part-of: memberlist
+      annotations:
+        checksum/config: 96a50b362fdee95ba985cbe141e40c41f2121a240784215d2148ffce62d12ce4
+    spec:
+      serviceAccountName: lgtm
+      securityContext:
+        fsGroup: 1000
+      enableServiceLinks: false
+      
+      initContainers:
+        []
+      containers:
+        - args:
+            - -target=querier
+            - -config.file=/conf/tempo.yaml
+            - -mem-ballast-size-mbs=1024
+          image: docker.io/grafana/tempo:2.8.0
+          imagePullPolicy: IfNotPresent
+          name: querier
+          ports:
+            - containerPort: 7946
+              name: http-memberlist
+              protocol: TCP
+            - containerPort: 3200
+              name: http-metrics
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http-metrics
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+          volumeMounts:
+            - mountPath: /conf
+              name: config
+            - mountPath: /runtime-config
+              name: runtime-config
+            - mountPath: /var/tempo
+              name: tempo-querier-store
+      terminationGracePeriodSeconds: 30
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: tempo
+              app.kubernetes.io/instance: lgtm
+              app.kubernetes.io/component: querier
+        
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: tempo
+                  app.kubernetes.io/instance: lgtm
+                  app.kubernetes.io/component: querier
+              topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: tempo
+                    app.kubernetes.io/instance: lgtm
+                    app.kubernetes.io/component: querier
+                topologyKey: topology.kubernetes.io/zone
+        
+      volumes:
+        - name: config
+          configMap:
+            name: lgtm-tempo-config
+            items:
+              - key: "tempo.yaml"
+                path: "tempo.yaml"
+        - name: runtime-config
+          configMap:
+            name: lgtm-tempo-runtime
+            items:
+              - key: "overrides.yaml"
+                path: "overrides.yaml"
+        - name: tempo-querier-store
+          emptyDir: {}
+---
+# Source: lgtm-distributed/charts/tempo/templates/query-frontend/deployment-query-frontend.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lgtm-tempo-query-frontend
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: query-frontend
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  minReadySeconds: 10
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+      app.kubernetes.io/instance: lgtm
+      app.kubernetes.io/component: query-frontend
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: tempo-1.42.2
+        app.kubernetes.io/name: tempo
+        app.kubernetes.io/instance: lgtm
+        app.kubernetes.io/version: "2.8.0"
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/component: query-frontend
+      annotations:
+        checksum/config: 96a50b362fdee95ba985cbe141e40c41f2121a240784215d2148ffce62d12ce4
+    spec:
+      serviceAccountName: lgtm
+      securityContext:
+        fsGroup: 1000
+      enableServiceLinks: false
+      
+      initContainers:
+        []
+      containers:
+        - args:
+            - -target=query-frontend
+            - -config.file=/conf/tempo.yaml
+            - -mem-ballast-size-mbs=1024
+          image: docker.io/grafana/tempo:2.8.0
+          imagePullPolicy: IfNotPresent
+          name: query-frontend
+          ports:
+            - containerPort: 3200
+              name: http-metrics
+            - containerPort: 9095
+              name: grpc
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumeMounts:
+            - mountPath: /conf
+              name: config
+            - mountPath: /runtime-config
+              name: runtime-config
+            - mountPath: /var/tempo
+              name: tempo-queryfrontend-store
+      terminationGracePeriodSeconds: 30
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: tempo
+              app.kubernetes.io/instance: lgtm
+              app.kubernetes.io/component: query-frontend
+        
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: tempo
+                  app.kubernetes.io/instance: lgtm
+                  app.kubernetes.io/component: query-frontend
+              topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: tempo
+                    app.kubernetes.io/instance: lgtm
+                    app.kubernetes.io/component: query-frontend
+                topologyKey: topology.kubernetes.io/zone
+        
+      volumes:
+        - name: config
+          configMap:
+            name: lgtm-tempo-config
+            items:
+              - key: "tempo.yaml"
+                path: "tempo.yaml"
+        - name: runtime-config
+          configMap:
+            name: lgtm-tempo-runtime
+            items:
+              - key: "overrides.yaml"
+                path: "overrides.yaml"
+        - name: tempo-queryfrontend-store
+          emptyDir: {}
+---
+# Source: lgtm-distributed/charts/tempo/templates/ingester/statefulset-ingester.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: lgtm-tempo-ingester
+  namespace: lgtm-poc-8
+  labels:    
+    helm.sh/chart: tempo-1.42.2
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: ingester
+    app.kubernetes.io/part-of: memberlist
+    app.kubernetes.io/version: "2.8.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tempo
+      app.kubernetes.io/instance: lgtm
+      app.kubernetes.io/component: ingester
+  serviceName: ingester
+  podManagementPolicy: Parallel
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: tempo-1.42.2
+        app.kubernetes.io/name: tempo
+        app.kubernetes.io/instance: lgtm
+        app.kubernetes.io/version: "2.8.0"
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/component: ingester
+        app.kubernetes.io/part-of: memberlist
+      annotations:
+        checksum/config: 96a50b362fdee95ba985cbe141e40c41f2121a240784215d2148ffce62d12ce4
+    spec:
+      serviceAccountName: lgtm
+      securityContext:
+        fsGroup: 1000
+      enableServiceLinks: false
+      
+      initContainers:
+        []
+      containers:
+        - args:
+            - -target=ingester
+            - -config.file=/conf/tempo.yaml
+            - -mem-ballast-size-mbs=1024
+          image: docker.io/grafana/tempo:2.8.0
+          imagePullPolicy: IfNotPresent
+          name: ingester
+          ports:
+            - name: grpc
+              containerPort: 9095
+            - name: http-memberlist
+              containerPort: 7946
+            - name: http-metrics
+              containerPort: 3200
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http-metrics
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumeMounts:
+            - mountPath: /conf
+              name: config
+            - mountPath: /runtime-config
+              name: runtime-config
+            - mountPath: /var/tempo
+              name: data
+      terminationGracePeriodSeconds: 300
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: tempo
+              app.kubernetes.io/instance: lgtm
+              app.kubernetes.io/component: ingester
+        
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: tempo
+                    app.kubernetes.io/instance: lgtm
+                    app.kubernetes.io/component: ingester
+                topologyKey: kubernetes.io/hostname
+            - weight: 75
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: tempo
+                    app.kubernetes.io/instance: lgtm
+                    app.kubernetes.io/component: ingester
+                topologyKey: topology.kubernetes.io/zone
+        
+      volumes:
+        - name: config
+          configMap:
+            name: lgtm-tempo-config
+            items:
+              - key: "tempo.yaml"
+                path: "tempo.yaml"
+        - name: runtime-config
+          configMap:
+            name: lgtm-tempo-runtime
+            items:
+              - key: "overrides.yaml"
+                path: "overrides.yaml"
+        - name: data
+          emptyDir: {}
+---
+# Source: lgtm-distributed/charts/grafana/templates/tests/test-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lgtm-grafana-test
+  namespace: lgtm-poc-8
+  annotations:
+    "helm.sh/hook": test-success
+    "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+  labels:
+    helm.sh/chart: grafana-7.3.12
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "10.4.3"
+    app.kubernetes.io/managed-by: Helm
+data:
+  run.sh: |-
+    @test "Test Health" {
+      url="http://lgtm-grafana/api/health"
+
+      code=$(wget --server-response --spider --timeout 90 --tries 10 ${url} 2>&1 | awk '/^  HTTP/{print $2}')
+      [ "$code" == "200" ]
+    }
+---
+# Source: lgtm-distributed/charts/grafana/templates/tests/test.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lgtm-grafana-test
+  labels:
+    helm.sh/chart: grafana-7.3.12
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "10.4.3"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": test-success
+    "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+  namespace: lgtm-poc-8
+spec:
+  serviceAccountName: default
+  containers:
+    - name: lgtm-test
+      image: "docker.io/bats/bats:v1.4.1"
+      imagePullPolicy: "IfNotPresent"
+      command: ["/opt/bats/bin/bats", "-t", "/tests/run.sh"]
+      volumeMounts:
+        - mountPath: /tests
+          name: tests
+          readOnly: true
+  volumes:
+    - name: tests
+      configMap:
+        name: lgtm-grafana-test
+  restartPolicy: Never
