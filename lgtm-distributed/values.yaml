@@ -1,7 +1,7 @@
 ---
 grafana:
   # -- Deploy Grafana if enabled. See [upstream readme](https://github.com/grafana/helm-charts/tree/main/charts/grafana#configuration) for full values reference.
-  enabled: true
+  enabled: false
   serviceAccount:
     create: false
     name: lgtm
@@ -67,7 +67,7 @@ grafana:
 
 loki:
   # -- Enable Loki (using the 'loki' chart, v6.9.0 / app 3.1.0)
-  enabled: false
+  enabled: true
   # Use distributed mode to run specific microservices only
   deploymentMode: Distributed
   # Pin Loki image to match subchart defaults (used by all core components)
@@ -209,7 +209,7 @@ loki:
 # -- Mimir chart values. Resources are set to a minimum by default.
 mimir:
   # -- Deploy Mimir if enabled. See [upstream values.yaml](https://github.com/grafana/mimir/blob/main/operations/helm/charts/mimir-distributed/values.yaml) for full values reference.
-  enabled: true
+  enabled: false
   image:
     repository: grafana/mimir
     tag: "2.16.0"
@@ -387,7 +387,7 @@ grafana-oncall:
 
 # OpenTelemetry Collector subchart values
 otelcol:
-  enabled: true
+  enabled: false
   serviceAccount:
     create: false
     name: lgtm

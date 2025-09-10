@@ -1,321 +1,141 @@
 ---
-# Source: lgtm-distributed/charts/mimir/templates/distributor/distributor-pdb.yaml
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: lgtm-mimir-distributor
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: distributor
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  namespace: "lgtm-poc-8"
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: mimir
-      app.kubernetes.io/instance: lgtm
-      app.kubernetes.io/component: distributor
-  maxUnavailable: 1
----
-# Source: lgtm-distributed/charts/mimir/templates/ingester/ingester-pdb.yaml
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: lgtm-mimir-ingester
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: ingester
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  namespace: "lgtm-poc-8"
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: mimir
-      app.kubernetes.io/instance: lgtm
-      app.kubernetes.io/component: ingester
-  maxUnavailable: 1
----
-# Source: lgtm-distributed/charts/mimir/templates/querier/querier-pdb.yaml
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: lgtm-mimir-querier
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: querier
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  namespace: "lgtm-poc-8"
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: mimir
-      app.kubernetes.io/instance: lgtm
-      app.kubernetes.io/component: querier
-  maxUnavailable: 1
----
-# Source: lgtm-distributed/charts/mimir/templates/query-frontend/query-frontend-pdb.yaml
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: lgtm-mimir-query-frontend
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: query-frontend
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  namespace: "lgtm-poc-8"
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: mimir
-      app.kubernetes.io/instance: lgtm
-      app.kubernetes.io/component: query-frontend
-  maxUnavailable: 1
----
-# Source: lgtm-distributed/charts/mimir/templates/store-gateway/store-gateway-pdb.yaml
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: lgtm-mimir-store-gateway
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: store-gateway
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  namespace: "lgtm-poc-8"
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: mimir
-      app.kubernetes.io/instance: lgtm
-      app.kubernetes.io/component: store-gateway
-  maxUnavailable: 1
----
-# Source: lgtm-distributed/charts/mimir/charts/minio/templates/serviceaccount.yaml
+# Source: lgtm-distributed/charts/loki/charts/minio/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: "minio-sa"
+  namespace: "lgtm-poc-8"
 ---
-# Source: lgtm-distributed/charts/grafana/templates/secret.yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: lgtm-grafana
-  namespace: lgtm-poc-8
-  labels:
-    helm.sh/chart: grafana-7.3.12
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/version: "10.4.3"
-    app.kubernetes.io/managed-by: Helm
-type: Opaque
-data:
-  
-  admin-user: "YWRtaW4="
-  admin-password: "bmFLU05jMVlMcDlzcWZTV2xyNVFzYThEVmFoTEtLVE1PQ2FBcVRuNg=="
-  ldap-toml: ""
----
-# Source: lgtm-distributed/charts/mimir/charts/minio/templates/secrets.yaml
+# Source: lgtm-distributed/charts/loki/charts/minio/templates/secrets.yaml
 apiVersion: v1
 kind: Secret
 metadata:
   name: lgtm-minio
+  namespace: "lgtm-poc-8"
   labels:
     app: minio
-    chart: minio-5.4.0
+    chart: minio-4.0.15
     release: lgtm
     heritage: Helm
 type: Opaque
 data:
-  rootUser: "Z3JhZmFuYS1taW1pcg=="
+  rootUser: "ZW50ZXJwcmlzZS1sb2dz"
   rootPassword: "c3VwZXJzZWNyZXQ="
 ---
-# Source: lgtm-distributed/charts/grafana/templates/configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: lgtm-grafana
-  namespace: lgtm-poc-8
-  labels:
-    helm.sh/chart: grafana-7.3.12
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/version: "10.4.3"
-    app.kubernetes.io/managed-by: Helm
-data:
-  
-  grafana.ini: |
-    [analytics]
-    check_for_updates = true
-    [grafana_net]
-    url = https://grafana.net
-    [log]
-    mode = console
-    [paths]
-    data = /var/lib/grafana/
-    logs = /var/log/grafana
-    plugins = /var/lib/grafana/plugins
-    provisioning = /etc/grafana/provisioning
-    [server]
-    domain = ''
-  datasources.yaml: |
-    apiVersion: 1
-    datasources:
-    - isDefault: false
-      name: Loki
-      type: loki
-      uid: loki
-      url: http://lgtm-loki-query-frontend:3100
-    - isDefault: true
-      jsonData:
-        httpHeaderName1: X-Scope-OrgID
-      name: Mimir
-      secureJsonData:
-        httpHeaderValue1: tenant-1
-      type: prometheus
-      uid: prom
-      url: http://lgtm-mimir-query-frontend:8080/prometheus
-    - isDefault: false
-      jsonData:
-        lokiSearch:
-          datasourceUid: loki
-        serviceMap:
-          datasourceUid: prom
-        tracesToLogsV2:
-          datasourceUid: loki
-        tracesToMetrics:
-          datasourceUid: prom
-      name: Tempo
-      type: tempo
-      uid: tempo
-      url: http://lgtm-tempo-query-frontend:3200
----
-# Source: lgtm-distributed/charts/mimir/charts/minio/templates/configmap.yaml
+# Source: lgtm-distributed/charts/loki/charts/minio/templates/configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: lgtm-minio
+  namespace: "lgtm-poc-8"
   labels:
     app: minio
-    chart: minio-5.4.0
+    chart: minio-4.0.15
     release: lgtm
     heritage: Helm
 data:
   initialize: |-
     #!/bin/sh
-    set -e # Have script exit in the event of a failed command.
-    MC_CONFIG_DIR="/tmp/minio/mc/"
+    set -e ; # Have script exit in the event of a failed command.
+    MC_CONFIG_DIR="/etc/minio/mc/"
     MC="/usr/bin/mc --insecure --config-dir ${MC_CONFIG_DIR}"
     
     # connectToMinio
     # Use a check-sleep-check loop to wait for MinIO service to be available
     connectToMinio() {
-    	SCHEME=$1
-    	ATTEMPTS=0
-    	LIMIT=29 # Allow 30 attempts
-    	set -e   # fail if we can't read the keys.
-    	ACCESS=$(cat /config/rootUser)
-    	SECRET=$(cat /config/rootPassword)
-    	set +e # The connections to minio are allowed to fail.
-    	echo "Connecting to MinIO server: $SCHEME://$MINIO_ENDPOINT:$MINIO_PORT"
-    	MC_COMMAND="${MC} alias set myminio $SCHEME://$MINIO_ENDPOINT:$MINIO_PORT $ACCESS $SECRET"
-    	$MC_COMMAND
-    	STATUS=$?
-    	until [ $STATUS = 0 ]; do
-    		ATTEMPTS=$(expr $ATTEMPTS + 1)
-    		echo \"Failed attempts: $ATTEMPTS\"
-    		if [ $ATTEMPTS -gt $LIMIT ]; then
-    			exit 1
-    		fi
-    		sleep 2 # 1 second intervals between attempts
-    		$MC_COMMAND
-    		STATUS=$?
-    	done
-    	set -e # reset `e` as active
-    	return 0
+      SCHEME=$1
+      ATTEMPTS=0 ; LIMIT=29 ; # Allow 30 attempts
+      set -e ; # fail if we can't read the keys.
+      ACCESS=$(cat /config/rootUser) ; SECRET=$(cat /config/rootPassword) ;
+      set +e ; # The connections to minio are allowed to fail.
+      echo "Connecting to MinIO server: $SCHEME://$MINIO_ENDPOINT:$MINIO_PORT" ;
+      MC_COMMAND="${MC} alias set myminio $SCHEME://$MINIO_ENDPOINT:$MINIO_PORT $ACCESS $SECRET" ;
+      $MC_COMMAND ;
+      STATUS=$? ;
+      until [ $STATUS = 0 ]
+      do
+        ATTEMPTS=`expr $ATTEMPTS + 1` ;
+        echo \"Failed attempts: $ATTEMPTS\" ;
+        if [ $ATTEMPTS -gt $LIMIT ]; then
+          exit 1 ;
+        fi ;
+        sleep 2 ; # 1 second intervals between attempts
+        $MC_COMMAND ;
+        STATUS=$? ;
+      done ;
+      set -e ; # reset `e` as active
+      return 0
     }
     
     # checkBucketExists ($bucket)
     # Check if the bucket exists, by using the exit code of `mc ls`
     checkBucketExists() {
-    	BUCKET=$1
-    	CMD=$(${MC} stat myminio/$BUCKET >/dev/null 2>&1)
-    	return $?
+      BUCKET=$1
+      CMD=$(${MC} ls myminio/$BUCKET > /dev/null 2>&1)
+      return $?
     }
     
     # createBucket ($bucket, $policy, $purge)
     # Ensure bucket exists, purging if asked to
     createBucket() {
-    	BUCKET=$1
-    	POLICY=$2
-    	PURGE=$3
-    	VERSIONING=$4
-    	OBJECTLOCKING=$5
+      BUCKET=$1
+      POLICY=$2
+      PURGE=$3
+      VERSIONING=$4
+      OBJECTLOCKING=$5
     
-    	# Purge the bucket, if set & exists
-    	# Since PURGE is user input, check explicitly for `true`
-    	if [ $PURGE = true ]; then
-    		if checkBucketExists $BUCKET; then
-    			echo "Purging bucket '$BUCKET'."
-    			set +e # don't exit if this fails
-    			${MC} rm -r --force myminio/$BUCKET
-    			set -e # reset `e` as active
-    		else
-    			echo "Bucket '$BUCKET' does not exist, skipping purge."
-    		fi
-    	fi
+      # Purge the bucket, if set & exists
+      # Since PURGE is user input, check explicitly for `true`
+      if [ $PURGE = true ]; then
+        if checkBucketExists $BUCKET ; then
+          echo "Purging bucket '$BUCKET'."
+          set +e ; # don't exit if this fails
+          ${MC} rm -r --force myminio/$BUCKET
+          set -e ; # reset `e` as active
+        else
+          echo "Bucket '$BUCKET' does not exist, skipping purge."
+        fi
+      fi
     
-    	# Create the bucket if it does not exist and set objectlocking if enabled (NOTE: versioning will be not changed if OBJECTLOCKING is set because it enables versioning to the Buckets created)
-    	if ! checkBucketExists $BUCKET; then
-    		if [ ! -z $OBJECTLOCKING ]; then
-    			if [ $OBJECTLOCKING = true ]; then
-    				echo "Creating bucket with OBJECTLOCKING '$BUCKET'"
-    				${MC} mb --with-lock myminio/$BUCKET
-    			elif [ $OBJECTLOCKING = false ]; then
-    				echo "Creating bucket '$BUCKET'"
-    				${MC} mb myminio/$BUCKET
-    			fi
-    		elif [ -z $OBJECTLOCKING ]; then
-    			echo "Creating bucket '$BUCKET'"
-    			${MC} mb myminio/$BUCKET
-    		else
-    			echo "Bucket '$BUCKET' already exists."
-    		fi
-    	fi
+    # Create the bucket if it does not exist and set objectlocking if enabled (NOTE: versioning will be not changed if OBJECTLOCKING is set because it enables versioning to the Buckets created)
+    if ! checkBucketExists $BUCKET ; then
+        if [ ! -z $OBJECTLOCKING ] ; then
+          if [ $OBJECTLOCKING = true ] ; then
+              echo "Creating bucket with OBJECTLOCKING '$BUCKET'"
+              ${MC} mb --with-lock myminio/$BUCKET
+          elif [ $OBJECTLOCKING = false ] ; then
+                echo "Creating bucket '$BUCKET'"
+                ${MC} mb myminio/$BUCKET
+          fi
+      elif [ -z $OBJECTLOCKING ] ; then
+            echo "Creating bucket '$BUCKET'"
+            ${MC} mb myminio/$BUCKET
+      else
+        echo "Bucket '$BUCKET' already exists."  
+      fi
+      fi
     
-    	# set versioning for bucket if objectlocking is disabled or not set
-    	if [ $OBJECTLOCKING = false ]; then
-    		if [ ! -z $VERSIONING ]; then
-    			if [ $VERSIONING = true ]; then
-    				echo "Enabling versioning for '$BUCKET'"
-    				${MC} version enable myminio/$BUCKET
-    			elif [ $VERSIONING = false ]; then
-    				echo "Suspending versioning for '$BUCKET'"
-    				${MC} version suspend myminio/$BUCKET
-    			fi
-    		fi
-    	else
-    		echo "Bucket '$BUCKET' versioning unchanged."
-    	fi
     
-    	# At this point, the bucket should exist, skip checking for existence
-    	# Set policy on the bucket
-    	echo "Setting policy of bucket '$BUCKET' to '$POLICY'."
-    	${MC} anonymous set $POLICY myminio/$BUCKET
+      # set versioning for bucket if objectlocking is disabled or not set
+      if [ -z $OBJECTLOCKING ] ; then
+      if [ ! -z $VERSIONING ] ; then
+        if [ $VERSIONING = true ] ; then
+            echo "Enabling versioning for '$BUCKET'"
+            ${MC} version enable myminio/$BUCKET
+        elif [ $VERSIONING = false ] ; then
+            echo "Suspending versioning for '$BUCKET'"
+            ${MC} version suspend myminio/$BUCKET
+        fi
+        fi
+      else
+          echo "Bucket '$BUCKET' versioning unchanged."
+      fi
+    
+    
+      # At this point, the bucket should exist, skip checking for existence
+      # Set policy on the bucket
+      echo "Setting policy of bucket '$BUCKET' to '$POLICY'."
+      ${MC} policy set $POLICY myminio/$BUCKET
     }
     
     # Try connecting to MinIO instance
@@ -325,16 +145,13 @@ data:
     
     
     # Create the buckets
-    createBucket mimir-tsdb "none" false false false
-    createBucket mimir-ruler "none" false false false
-    createBucket enterprise-metrics-tsdb "none" false false false
-    createBucket enterprise-metrics-admin "none" false false false
-    createBucket enterprise-metrics-ruler "none" false false false
-    
+    createBucket chunks none false  
+    createBucket ruler none false  
+    createBucket admin none false  
   add-user: |-
     #!/bin/sh
     set -e ; # Have script exit in the event of a failed command.
-    MC_CONFIG_DIR="/tmp/minio/mc/"
+    MC_CONFIG_DIR="/etc/minio/mc/"
     MC="/usr/bin/mc --insecure --config-dir ${MC_CONFIG_DIR}"
     
     # AccessKey and secretkey credentials file are added to prevent shell execution errors caused by special characters.
@@ -402,9 +219,7 @@ data:
       # set policy for user
       if [ ! -z $POLICY -a $POLICY != " " ] ; then
           echo "Adding policy '$POLICY' for '$USER'"
-          set +e ; # policy already attach errors out, allow it.
-          ${MC} admin policy attach myminio $POLICY --user=$USER
-          set -e
+          ${MC} admin policy set myminio $POLICY user=$USER
       else
           echo "User '$USER' has no policy attached."
       fi
@@ -424,7 +239,7 @@ data:
   add-policy: |-
     #!/bin/sh
     set -e ; # Have script exit in the event of a failed command.
-    MC_CONFIG_DIR="/tmp/minio/mc/"
+    MC_CONFIG_DIR="/etc/minio/mc/"
     MC="/usr/bin/mc --insecure --config-dir ${MC_CONFIG_DIR}"
     
     # connectToMinio
@@ -474,101 +289,19 @@ data:
       else
         echo "Policy '$NAME' already exists."
       fi
-      ${MC} admin policy create myminio $NAME /config/$FILENAME.json
+      ${MC} admin policy add myminio $NAME /config/$FILENAME.json
     
     }
     
     # Try connecting to MinIO instance
     scheme=http
     connectToMinio $scheme
-    
-    
-    
-  add-svcacct: |-
-    #!/bin/sh
-    set -e ; # Have script exit in the event of a failed command.
-    MC_CONFIG_DIR="/tmp/minio/mc/"
-    MC="/usr/bin/mc --insecure --config-dir ${MC_CONFIG_DIR}"
-    
-    # AccessKey and secretkey credentials file are added to prevent shell execution errors caused by special characters.
-    # Special characters for example : ',",<,>,{,}
-    MINIO_ACCESSKEY_SECRETKEY_TMP="/tmp/accessKey_and_secretKey_svcacct_tmp"
-    
-    # connectToMinio
-    # Use a check-sleep-check loop to wait for MinIO service to be available
-    connectToMinio() {
-      SCHEME=$1
-      ATTEMPTS=0 ; LIMIT=29 ; # Allow 30 attempts
-      set -e ; # fail if we can't read the keys.
-      ACCESS=$(cat /config/rootUser) ; SECRET=$(cat /config/rootPassword) ;
-      set +e ; # The connections to minio are allowed to fail.
-      echo "Connecting to MinIO server: $SCHEME://$MINIO_ENDPOINT:$MINIO_PORT" ;
-      MC_COMMAND="${MC} alias set myminio $SCHEME://$MINIO_ENDPOINT:$MINIO_PORT $ACCESS $SECRET" ;
-      $MC_COMMAND ;
-      STATUS=$? ;
-      until [ $STATUS = 0 ]
-      do
-        ATTEMPTS=`expr $ATTEMPTS + 1` ;
-        echo \"Failed attempts: $ATTEMPTS\" ;
-        if [ $ATTEMPTS -gt $LIMIT ]; then
-          exit 1 ;
-        fi ;
-        sleep 2 ; # 2 second intervals between attempts
-        $MC_COMMAND ;
-        STATUS=$? ;
-      done ;
-      set -e ; # reset `e` as active
-      return 0
-    }
-    
-    # checkSvcacctExists ()
-    # Check if the svcacct exists, by using the exit code of `mc admin user svcacct info`
-    checkSvcacctExists() {
-      CMD=$(${MC} admin user svcacct info myminio $(head -1 $MINIO_ACCESSKEY_SECRETKEY_TMP) > /dev/null 2>&1)
-      return $?
-    }
-    
-    # createSvcacct ($user)
-    createSvcacct () {
-      USER=$1
-      FILENAME=$2
-      #check accessKey_and_secretKey_tmp file
-      if [[ ! -f $MINIO_ACCESSKEY_SECRETKEY_TMP ]];then
-        echo "credentials file does not exist"
-        return 1
-      fi
-      if [[ $(cat $MINIO_ACCESSKEY_SECRETKEY_TMP|wc -l) -ne 2 ]];then
-        echo "credentials file is invalid"
-        rm -f $MINIO_ACCESSKEY_SECRETKEY_TMP
-        return 1
-      fi
-      SVCACCT=$(head -1 $MINIO_ACCESSKEY_SECRETKEY_TMP)
-      # Create the svcacct if it does not exist
-      if ! checkSvcacctExists ; then
-        echo "Creating svcacct '$SVCACCT'"
-        # Check if policy file is define
-        if [ -z $FILENAME ]; then
-          ${MC} admin user svcacct add --access-key $(head -1 $MINIO_ACCESSKEY_SECRETKEY_TMP) --secret-key $(tail -n1 $MINIO_ACCESSKEY_SECRETKEY_TMP) myminio $USER
-        else
-          ${MC} admin user svcacct add --access-key $(head -1 $MINIO_ACCESSKEY_SECRETKEY_TMP) --secret-key $(tail -n1 $MINIO_ACCESSKEY_SECRETKEY_TMP) --policy /config/$FILENAME.json myminio $USER
-        fi
-      else
-        echo "Svcacct '$SVCACCT' already exists."
-      fi
-      #clean up credentials files.
-      rm -f $MINIO_ACCESSKEY_SECRETKEY_TMP
-    }
-    
-    # Try connecting to MinIO instance
-    scheme=http
-    connectToMinio $scheme
-    
     
     
   custom-command: |-
     #!/bin/sh
     set -e ; # Have script exit in the event of a failed command.
-    MC_CONFIG_DIR="/tmp/minio/mc/"
+    MC_CONFIG_DIR="/etc/minio/mc/"
     MC="/usr/bin/mc --insecure --config-dir ${MC_CONFIG_DIR}"
     
     # connectToMinio
@@ -609,362 +342,115 @@ data:
     scheme=http
     connectToMinio $scheme
 ---
-# Source: lgtm-distributed/charts/mimir/templates/mimir-config.yaml
+# Source: lgtm-distributed/charts/loki/templates/config.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: lgtm-mimir-config
+  name: loki
+  namespace: lgtm-poc-8
   labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
     app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/version: "2.16.0"
+    app.kubernetes.io/version: "3.1.0"
     app.kubernetes.io/managed-by: Helm
-  namespace: "lgtm-poc-8"
 data:
-  mimir.yaml: |
+  config.yaml: |
     
-    activity_tracker:
-      filepath: /active-query-tracker/activity.log
-    alertmanager:
-      data_dir: /data
-      enable_api: true
-      external_url: /alertmanager
-      fallback_config_file: /configs/alertmanager_fallback_config.yaml
-    alertmanager_storage:
-      backend: s3
-      s3:
-        access_key_id: grafana-mimir
-        bucket_name: mimir-ruler
-        endpoint: lgtm-minio.lgtm-poc-8.svc:9000
-        insecure: true
-        secret_access_key: supersecret
-    blocks_storage:
-      backend: s3
-      bucket_store:
-        sync_dir: /data/tsdb-sync
-      s3:
-        access_key_id: grafana-mimir
-        bucket_name: mimir-tsdb
-        endpoint: lgtm-minio.lgtm-poc-8.svc:9000
-        insecure: true
-        secret_access_key: supersecret
-      tsdb:
-        dir: /data/tsdb
-        head_compaction_interval: 15m
-        wal_replay_concurrency: 3
-    compactor:
-      compaction_interval: 30m
-      data_dir: /data
-      deletion_delay: 2h
-      first_level_compaction_wait_period: 25m
-      max_closing_blocks_concurrency: 2
-      max_opening_blocks_concurrency: 4
-      sharding_ring:
-        heartbeat_period: 1m
-        heartbeat_timeout: 4m
-        wait_stability_min_duration: 1m
-      symbols_flushers_concurrency: 4
-    distributor:
-      ingestion_replication_factor: 1
-      min_successful_ingestions: 1
-      ring:
-        heartbeat_period: 1m
-        heartbeat_timeout: 4m
+    auth_enabled: false
+    common:
+      compactor_address: 'http://lgtm-loki-compactor:3100'
+      path_prefix: /var/loki
+      replication_factor: 1
+      storage:
+        s3:
+          access_key_id: enterprise-logs
+          bucketnames: chunks
+          endpoint: lgtm-minio.lgtm-poc-8.svc:9000
+          insecure: true
+          s3forcepathstyle: true
+          secret_access_key: supersecret
     frontend:
-      parallelize_shardable_queries: true
+      scheduler_address: lgtm-loki-query-scheduler.lgtm-poc-8.svc.cluster.local:9095
+      tail_proxy_url: http://lgtm-loki-querier.lgtm-poc-8.svc.cluster.local:3100
     frontend_worker:
-      frontend_address: lgtm-mimir-query-frontend-headless.lgtm-poc-8.svc:9095
-      grpc_client_config:
-        max_send_msg_size: 419430400
-    ingester:
-      ring:
-        final_sleep: 0s
-        heartbeat_period: 2m
-        heartbeat_timeout: 10m
-        num_tokens: 512
-        replication_factor: 1
-        tokens_file_path: /data/tokens
-        unregister_on_shutdown: false
-    ingester_client:
-      grpc_client_config:
-        max_recv_msg_size: 104857600
-        max_send_msg_size: 104857600
-    limits:
-      max_cache_freshness: 10m
-      max_query_parallelism: 240
-      max_total_query_length: 12000h
+      scheduler_address: lgtm-loki-query-scheduler.lgtm-poc-8.svc.cluster.local:9095
+    index_gateway:
+      mode: simple
+    limits_config:
+      max_cache_freshness_per_query: 10m
+      query_timeout: 300s
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+      split_queries_by_interval: 15m
+      volume_enabled: true
     memberlist:
-      abort_if_cluster_join_fails: false
-      compression_enabled: false
       join_members:
-      - dns+lgtm-mimir-gossip-ring.lgtm-poc-8.svc.cluster.local.:7946
-    querier:
-      max_concurrent: 16
-    query_scheduler:
-      max_outstanding_requests_per_tenant: 800
+      - loki-memberlist
+    pattern_ingester:
+      enabled: false
+    query_range:
+      align_queries_with_step: true
     ruler:
-      alertmanager_url: dnssrvnoa+http://_http-metrics._tcp.lgtm-mimir-alertmanager-headless.lgtm-poc-8.svc.cluster.local./alertmanager
-      enable_api: true
-      rule_path: /data
-    ruler_storage:
-      backend: s3
-      s3:
-        access_key_id: grafana-mimir
-        bucket_name: mimir-ruler
-        endpoint: lgtm-minio.lgtm-poc-8.svc:9000
-        insecure: true
-        secret_access_key: supersecret
+      storage:
+        s3:
+          bucketnames: ruler
+        type: s3
     runtime_config:
-      file: /var/mimir/runtime.yaml
-    store_gateway:
-      sharding_ring:
-        heartbeat_period: 1m
-        heartbeat_timeout: 10m
-        tokens_file_path: /data/tokens
-        unregister_on_shutdown: false
-        wait_stability_min_duration: 1m
-    usage_stats:
-      installation_mode: helm
+      file: /etc/loki/runtime-config/runtime-config.yaml
+    schema_config:
+      configs:
+      - from: "2024-01-01"
+        index:
+          period: 24h
+          prefix: index_
+        object_store: s3
+        schema: v13
+        store: tsdb
+    server:
+      grpc_listen_port: 9095
+      http_listen_port: 3100
+      http_server_read_timeout: 600s
+      http_server_write_timeout: 600s
+    storage_config:
+      boltdb_shipper:
+        index_gateway_client:
+          server_address: dns+lgtm-loki-index-gateway-headless.lgtm-poc-8.svc.cluster.local:9095
+      hedging:
+        at: 250ms
+        max_per_second: 20
+        up_to: 3
+      tsdb_shipper:
+        index_gateway_client:
+          server_address: dns+lgtm-loki-index-gateway-headless.lgtm-poc-8.svc.cluster.local:9095
+    tracing:
+      enabled: false
 ---
-# Source: lgtm-distributed/charts/mimir/templates/runtime-configmap.yaml
+# Source: lgtm-distributed/charts/loki/templates/runtime-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: lgtm-mimir-runtime
+  name: loki-runtime
+  namespace: lgtm-poc-8
   labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
     app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/version: "2.16.0"
+    app.kubernetes.io/version: "3.1.0"
     app.kubernetes.io/managed-by: Helm
-  namespace: "lgtm-poc-8"
 data:
-  runtime.yaml: |
-    
+  runtime-config.yaml: |
     {}
 ---
-# Source: lgtm-distributed/charts/otelcol/templates/configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: lgtm-otelcol
-  namespace: lgtm-poc-8
-  labels:
-    helm.sh/chart: otelcol-0.133.0
-    app.kubernetes.io/name: otelcol
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/version: "0.134.1"
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: opentelemetry-collector
-    app.kubernetes.io/component: standalone-collector
-data:
-  relay: |
-    exporters:
-      debug: {}
-      otlphttp/loki:
-        endpoint: http://lgtm-loki-distributor:3100
-        logs_endpoint: /otlp/v1/logs
-        tls:
-          insecure: true
-      otlphttp/mimir:
-        endpoint: http://lgtm-mimir-distributor:8080/otlp
-        headers:
-          X-Scope-OrgID: tenant-1
-      otlphttp/tempo:
-        endpoint: http://lgtm-tempo-distributor:4318
-        tls:
-          insecure: true
-    extensions:
-      health_check:
-        endpoint: ${env:MY_POD_IP}:13133
-    processors:
-      batch: {}
-      memory_limiter:
-        check_interval: 5s
-        limit_percentage: 80
-        spike_limit_percentage: 25
-    receivers:
-      jaeger:
-        protocols:
-          grpc:
-            endpoint: ${env:MY_POD_IP}:14250
-          thrift_compact:
-            endpoint: ${env:MY_POD_IP}:6831
-          thrift_http:
-            endpoint: ${env:MY_POD_IP}:14268
-      otlp:
-        protocols:
-          grpc:
-            endpoint: ${env:MY_POD_IP}:4317
-          http:
-            endpoint: ${env:MY_POD_IP}:4318
-      prometheus:
-        config:
-          scrape_configs:
-          - job_name: opentelemetry-collector
-            scrape_interval: 10s
-            static_configs:
-            - targets:
-              - ${env:MY_POD_IP}:8888
-      zipkin:
-        endpoint: ${env:MY_POD_IP}:9411
-    service:
-      extensions:
-      - health_check
-      pipelines:
-        logs:
-          exporters:
-          - otlphttp/loki
-          processors:
-          - batch
-          receivers:
-          - otlp
-        metrics:
-          exporters:
-          - otlphttp/mimir
-          processors:
-          - memory_limiter
-          - batch
-          receivers:
-          - otlp
-          - prometheus
-        traces:
-          exporters:
-          - otlphttp/tempo
-          - debug
-          processors:
-          - memory_limiter
-          - batch
-          receivers:
-          - otlp
-          - jaeger
-          - zipkin
-      telemetry:
-        metrics:
-          readers:
-          - pull:
-              exporter:
-                prometheus:
-                  host: ${env:MY_POD_IP}
-                  port: 8888
----
-# Source: lgtm-distributed/charts/mimir/charts/minio/templates/pvc.yaml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: lgtm-minio
-  labels:
-    app: minio
-    chart: minio-5.4.0
-    release: lgtm
-    heritage: Helm
-spec:
-  accessModes:
-    - "ReadWriteOnce"
-  resources:
-    requests:
-      storage: "5Gi"
----
-# Source: lgtm-distributed/charts/grafana/templates/clusterrole.yaml
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  labels:
-    helm.sh/chart: grafana-7.3.12
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/version: "10.4.3"
-    app.kubernetes.io/managed-by: Helm
-  name: lgtm-grafana-clusterrole
-rules: []
----
-# Source: lgtm-distributed/charts/grafana/templates/clusterrolebinding.yaml
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: lgtm-grafana-clusterrolebinding
-  labels:
-    helm.sh/chart: grafana-7.3.12
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/version: "10.4.3"
-    app.kubernetes.io/managed-by: Helm
-subjects:
-  - kind: ServiceAccount
-    name: lgtm
-    namespace: lgtm-poc-8
-roleRef:
-  kind: ClusterRole
-  name: lgtm-grafana-clusterrole
-  apiGroup: rbac.authorization.k8s.io
----
-# Source: lgtm-distributed/charts/grafana/templates/role.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: lgtm-grafana
-  namespace: lgtm-poc-8
-  labels:
-    helm.sh/chart: grafana-7.3.12
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/version: "10.4.3"
-    app.kubernetes.io/managed-by: Helm
-rules: []
----
-# Source: lgtm-distributed/charts/grafana/templates/rolebinding.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: lgtm-grafana
-  namespace: lgtm-poc-8
-  labels:
-    helm.sh/chart: grafana-7.3.12
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/version: "10.4.3"
-    app.kubernetes.io/managed-by: Helm
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: lgtm-grafana
-subjects:
-- kind: ServiceAccount
-  name: lgtm
-  namespace: lgtm-poc-8
----
-# Source: lgtm-distributed/charts/grafana/templates/service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: lgtm-grafana
-  namespace: lgtm-poc-8
-  labels:
-    helm.sh/chart: grafana-7.3.12
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/version: "10.4.3"
-    app.kubernetes.io/managed-by: Helm
-spec:
-  type: ClusterIP
-  ports:
-    - name: service
-      port: 80
-      protocol: TCP
-      targetPort: 3000
-  selector:
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/instance: lgtm
----
-# Source: lgtm-distributed/charts/mimir/charts/minio/templates/console-service.yaml
+# Source: lgtm-distributed/charts/loki/charts/minio/templates/console-service.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: lgtm-minio-console
+  namespace: "lgtm-poc-8"
   labels:
     app: minio
-    chart: minio-5.4.0
+    chart: minio-4.0.15
     release: lgtm
     heritage: Helm
 spec:
@@ -978,14 +464,15 @@ spec:
     app: minio
     release: lgtm
 ---
-# Source: lgtm-distributed/charts/mimir/charts/minio/templates/service.yaml
+# Source: lgtm-distributed/charts/loki/charts/minio/templates/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: lgtm-minio
+  namespace: "lgtm-poc-8"
   labels:
     app: minio
-    chart: minio-5.4.0
+    chart: minio-4.0.15
     release: lgtm
     heritage: Helm
     monitoring: "true"
@@ -1000,489 +487,463 @@ spec:
     app: minio
     release: lgtm
 ---
-# Source: lgtm-distributed/charts/mimir/templates/distributor/distributor-svc-headless.yaml
+# Source: lgtm-distributed/charts/loki/charts/minio/templates/statefulset.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: lgtm-mimir-distributor-headless
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: distributor
-    app.kubernetes.io/part-of: memberlist
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-    prometheus.io/service-monitor: "false"
-  annotations:
-    {}
+  name: lgtm-minio-svc
   namespace: "lgtm-poc-8"
-spec:
-  type: ClusterIP
-  clusterIP: None
-  ports:
-    - port: 8080
-      protocol: TCP
-      name: http-metrics
-      targetPort: http-metrics
-    - port: 9095
-      protocol: TCP
-      name: grpc
-      targetPort: grpc
-  selector:
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: distributor
----
-# Source: lgtm-distributed/charts/mimir/templates/distributor/distributor-svc.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: lgtm-mimir-distributor
   labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: distributor
-    app.kubernetes.io/part-of: memberlist
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    {}
-  namespace: "lgtm-poc-8"
+    app: minio
+    chart: minio-4.0.15
+    release: "lgtm"
+    heritage: "Helm"
 spec:
-  type: ClusterIP
-  internalTrafficPolicy: Cluster
-  ports:
-    - port: 8080
-      protocol: TCP
-      name: http-metrics
-      targetPort: http-metrics
-    - port: 9095
-      protocol: TCP
-      name: grpc
-      targetPort: grpc
-  selector:
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: distributor
----
-# Source: lgtm-distributed/charts/mimir/templates/gossip-ring/gossip-ring-svc.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: lgtm-mimir-gossip-ring
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: gossip-ring
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  namespace: "lgtm-poc-8"
-spec:
-  type: ClusterIP
-  clusterIP: None
-  ports:
-    - name: gossip-ring
-      port: 7946
-      appProtocol: tcp
-      protocol: TCP
-      targetPort: 7946
   publishNotReadyAddresses: true
-  selector:
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/part-of: memberlist
----
-# Source: lgtm-distributed/charts/mimir/templates/ingester/ingester-svc-headless.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: lgtm-mimir-ingester-headless
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: ingester
-    app.kubernetes.io/part-of: memberlist
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-    prometheus.io/service-monitor: "false"
-  annotations:
-    {}
-  namespace: "lgtm-poc-8"
-spec:
-  type: ClusterIP
   clusterIP: None
   ports:
-    - port: 8080
+    - name: http
+      port: 9000
       protocol: TCP
-      name: http-metrics
-      targetPort: http-metrics
-    - port: 9095
-      protocol: TCP
-      name: grpc
-      targetPort: grpc
+      targetPort: 9000
   selector:
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: ingester
+    app: minio
+    release: lgtm
 ---
-# Source: lgtm-distributed/charts/mimir/templates/ingester/ingester-svc.yaml
+# Source: lgtm-distributed/charts/loki/templates/compactor/service-compactor.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: lgtm-mimir-ingester
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: ingester
-    app.kubernetes.io/part-of: memberlist
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    {}
-  namespace: "lgtm-poc-8"
-spec:
-  type: ClusterIP
-  internalTrafficPolicy: Cluster
-  ports:
-    - port: 8080
-      protocol: TCP
-      name: http-metrics
-      targetPort: http-metrics
-    - port: 9095
-      protocol: TCP
-      name: grpc
-      targetPort: grpc
-  selector:
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: ingester
----
-# Source: lgtm-distributed/charts/mimir/templates/querier/querier-svc.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: lgtm-mimir-querier
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: querier
-    app.kubernetes.io/part-of: memberlist
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    {}
-  namespace: "lgtm-poc-8"
-spec:
-  type: ClusterIP
-  internalTrafficPolicy: Cluster
-  ports:
-    - port: 8080
-      protocol: TCP
-      name: http-metrics
-      targetPort: http-metrics
-    - port: 9095
-      protocol: TCP
-      name: grpc
-      targetPort: grpc
-  selector:
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: querier
----
-# Source: lgtm-distributed/charts/mimir/templates/query-frontend/query-frontend-svc-headless.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: lgtm-mimir-query-frontend-headless
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: query-frontend
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-    prometheus.io/service-monitor: "false"
-  annotations:
-    {}
-  namespace: "lgtm-poc-8"
-spec:
-  type: ClusterIP
-  clusterIP: None
-  publishNotReadyAddresses: true
-  ports:
-    - port: 8080
-      protocol: TCP
-      name: http-metrics
-      targetPort: http-metrics
-    - port: 9095
-      protocol: TCP
-      name: grpc
-      targetPort: grpc
-  selector:
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: query-frontend
----
-# Source: lgtm-distributed/charts/mimir/templates/query-frontend/query-frontend-svc.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: lgtm-mimir-query-frontend
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: query-frontend
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    {}
-  namespace: "lgtm-poc-8"
-spec:
-  type: ClusterIP
-  internalTrafficPolicy: Cluster
-  ports:
-    - port: 8080
-      protocol: TCP
-      name: http-metrics
-      targetPort: http-metrics
-    - port: 9095
-      protocol: TCP
-      name: grpc
-      targetPort: grpc
-  selector:
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: query-frontend
----
-# Source: lgtm-distributed/charts/mimir/templates/store-gateway/store-gateway-svc-headless.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: lgtm-mimir-store-gateway-headless
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: store-gateway
-    app.kubernetes.io/part-of: memberlist
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-    prometheus.io/service-monitor: "false"
-  annotations:
-    {}
-  namespace: "lgtm-poc-8"
-spec:
-  type: ClusterIP
-  clusterIP: None
-  ports:
-    - port: 8080
-      protocol: TCP
-      name: http-metrics
-      targetPort: http-metrics
-    - port: 9095
-      protocol: TCP
-      name: grpc
-      targetPort: grpc
-  selector:
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: store-gateway
----
-# Source: lgtm-distributed/charts/mimir/templates/store-gateway/store-gateway-svc.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: lgtm-mimir-store-gateway
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: store-gateway
-    app.kubernetes.io/part-of: memberlist
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    {}
-  namespace: "lgtm-poc-8"
-spec:
-  type: ClusterIP
-  internalTrafficPolicy: Cluster
-  ports:
-    - port: 8080
-      protocol: TCP
-      name: http-metrics
-      targetPort: http-metrics
-    - port: 9095
-      protocol: TCP
-      name: grpc
-      targetPort: grpc
-  selector:
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: store-gateway
----
-# Source: lgtm-distributed/charts/otelcol/templates/service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: lgtm-otelcol
+  name: lgtm-loki-compactor
   namespace: lgtm-poc-8
   labels:
-    helm.sh/chart: otelcol-0.133.0
-    app.kubernetes.io/name: otelcol
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
     app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/version: "0.134.1"
+    app.kubernetes.io/version: "3.1.0"
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: opentelemetry-collector
-    app.kubernetes.io/component: standalone-collector
-    component: standalone-collector
+    app.kubernetes.io/component: compactor
 spec:
   type: ClusterIP
   ports:
-    
-    - name: jaeger-compact
-      port: 6831
-      targetPort: 6831
-      protocol: UDP
-    - name: jaeger-grpc
-      port: 14250
-      targetPort: 14250
+    - name: http-metrics
+      port: 3100
+      targetPort: http-metrics
       protocol: TCP
-    - name: jaeger-thrift
-      port: 14268
-      targetPort: 14268
-      protocol: TCP
-    - name: otlp
-      port: 4317
-      targetPort: 4317
-      protocol: TCP
-      appProtocol: grpc
-    - name: otlp-http
-      port: 4318
-      targetPort: 4318
-      protocol: TCP
-    - name: zipkin
-      port: 9411
-      targetPort: 9411
+    - name: grpc
+      port: 9095
+      targetPort: grpc
       protocol: TCP
   selector:
-    app.kubernetes.io/name: otelcol
+    app.kubernetes.io/name: loki
     app.kubernetes.io/instance: lgtm
-    component: standalone-collector
-  internalTrafficPolicy: Cluster
+    app.kubernetes.io/component: compactor
 ---
-# Source: lgtm-distributed/charts/grafana/templates/deployment.yaml
+# Source: lgtm-distributed/charts/loki/templates/distributor/service-distributor-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-loki-distributor-headless
+  namespace: lgtm-poc-8
+  labels:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: distributor
+    variant: headless
+    prometheus.io/service-monitor: "false"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http-metrics
+      port: 3100
+      targetPort: http-metrics
+      protocol: TCP
+    - name: grpc
+      port: 9095
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: distributor
+---
+# Source: lgtm-distributed/charts/loki/templates/distributor/service-distributor.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-loki-distributor
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "3.1.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: distributor
+spec:
+  type: ClusterIP
+  ports:
+    - name: http-metrics
+      port: 3100
+      targetPort: http-metrics
+      protocol: TCP
+    - name: grpc
+      port: 9095
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: distributor
+---
+# Source: lgtm-distributed/charts/loki/templates/index-gateway/service-index-gateway-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-loki-index-gateway-headless
+  labels:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: index-gateway
+    prometheus.io/service-monitor: "false"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http-metrics
+      port: 3100
+      targetPort: http-metrics
+      protocol: TCP
+    - name: grpc
+      port: 9095
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: index-gateway
+---
+# Source: lgtm-distributed/charts/loki/templates/index-gateway/service-index-gateway.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-loki-index-gateway
+  labels:
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "3.1.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: index-gateway
+spec:
+  type: ClusterIP
+  ports:
+    - name: http-metrics
+      port: 3100
+      targetPort: http-metrics
+      protocol: TCP
+    - name: grpc
+      port: 9095
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: index-gateway
+---
+# Source: lgtm-distributed/charts/loki/templates/ingester/service-ingester-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-loki-ingester-headless
+  namespace: lgtm-poc-8
+  labels:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: ingester
+    prometheus.io/service-monitor: "false"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http-metrics
+      port: 3100
+      targetPort: http-metrics
+      protocol: TCP
+    - name: grpc
+      port: 9095
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: ingester
+---
+# Source: lgtm-distributed/charts/loki/templates/ingester/service-ingester.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-loki-ingester
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "3.1.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: ingester
+spec:
+  type: ClusterIP
+  ports:
+    - name: http-metrics
+      port: 3100
+      targetPort: http-metrics
+      protocol: TCP
+    - name: grpc
+      port: 9095
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: ingester
+---
+# Source: lgtm-distributed/charts/loki/templates/querier/service-querier.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-loki-querier
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "3.1.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: querier
+spec:
+  type: ClusterIP
+  ports:
+    - name: http-metrics
+      port: 3100
+      targetPort: http-metrics
+      protocol: TCP
+    - name: grpc
+      port: 9095
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: querier
+---
+# Source: lgtm-distributed/charts/loki/templates/query-frontend/service-query-frontend-headless.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-loki-query-frontend-headless
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "3.1.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: query-frontend
+    prometheus.io/service-monitor: "false"
+spec:
+  clusterIP: None
+  type: ClusterIP
+  publishNotReadyAddresses: true
+  ports:
+    - name: http-metrics
+      port: 3100
+      targetPort: http-metrics
+      protocol: TCP
+    - name: grpc
+      port: 9095
+      targetPort: grpc
+      protocol: TCP
+    - name: grpclb
+      port: 9096
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: query-frontend
+---
+# Source: lgtm-distributed/charts/loki/templates/query-frontend/service-query-frontend.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-loki-query-frontend
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "3.1.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: query-frontend
+spec:
+  type: ClusterIP
+  publishNotReadyAddresses: true
+  ports:
+    - name: http-metrics
+      port: 3100
+      targetPort: http-metrics
+      protocol: TCP
+    - name: grpc
+      port: 9095
+      targetPort: grpc
+      protocol: TCP
+    - name: grpclb
+      port: 9096
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: query-frontend
+---
+# Source: lgtm-distributed/charts/loki/templates/query-scheduler/service-query-scheduler.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm-loki-query-scheduler
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "3.1.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: query-scheduler
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: http-metrics
+      port: 3100
+      targetPort: http-metrics
+      protocol: TCP
+    - name: grpclb
+      port: 9095
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/component: query-scheduler
+---
+# Source: lgtm-distributed/charts/loki/templates/service-memberlist.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki-memberlist
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "3.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: tcp
+      port: 7946
+      targetPort: http-memberlist
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/part-of: memberlist
+---
+# Source: lgtm-distributed/charts/loki/templates/distributor/deployment-distributor.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: lgtm-grafana
+  name: lgtm-loki-distributor
   namespace: lgtm-poc-8
   labels:
-    helm.sh/chart: grafana-7.3.12
-    app.kubernetes.io/name: grafana
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
     app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/version: "10.4.3"
+    app.kubernetes.io/version: "3.1.0"
     app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: distributor
+    app.kubernetes.io/part-of: memberlist
 spec:
   replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app.kubernetes.io/name: grafana
+      app.kubernetes.io/name: loki
       app.kubernetes.io/instance: lgtm
-  strategy:
-    type: RollingUpdate
+      app.kubernetes.io/component: distributor
   template:
     metadata:
-      labels:
-        app.kubernetes.io/name: grafana
-        app.kubernetes.io/instance: lgtm
       annotations:
-        checksum/config: e5c5efe4f2b2e5ab5981892e9a0b85184d2e819dee8d1bdc560de1e001e785c0
-        checksum/sc-dashboard-provider-config: 593c0a8778b83f11fe80ccb21dfb20bc46705e2be3178df1dc4c89d164c8cd9c
-        checksum/secret: 71ddb181d957d6285d48aa0ba2c01d644fd715ed17a03b259b8b0d93dd15341c
-        kubectl.kubernetes.io/default-container: grafana
+        checksum/config: 2a79ed5c83e3dc3330ad5e8e316cc0319e73df426335c55911206c359308d362
+      labels:
+        app.kubernetes.io/name: loki
+        app.kubernetes.io/instance: lgtm
+        app.kubernetes.io/component: distributor
+        app.kubernetes.io/part-of: memberlist
     spec:
-      
       serviceAccountName: lgtm
-      automountServiceAccountToken: true
+      
       securityContext:
-        fsGroup: 472
-        runAsGroup: 472
+        fsGroup: 10001
+        runAsGroup: 10001
         runAsNonRoot: true
-        runAsUser: 472
-      enableServiceLinks: true
+        runAsUser: 10001
+      terminationGracePeriodSeconds: 30
       containers:
-        - name: grafana
-          image: "docker.io/grafana/grafana:10.4.3"
+        - name: distributor
+          image: docker.io/grafana/loki:3.1.0
           imagePullPolicy: IfNotPresent
+          args:
+            - -config.file=/etc/loki/config/config.yaml
+            - -target=distributor
+          ports:
+            - name: http-metrics
+              containerPort: 3100
+              protocol: TCP
+            - name: grpc
+              containerPort: 9095
+              protocol: TCP
+            - name: http-memberlist
+              containerPort: 7946
+              protocol: TCP
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
               - ALL
-            seccompProfile:
-              type: RuntimeDefault
-          volumeMounts:
-            - name: config
-              mountPath: "/etc/grafana/grafana.ini"
-              subPath: grafana.ini
-            - name: storage
-              mountPath: "/var/lib/grafana"
-            - name: config
-              mountPath: "/etc/grafana/provisioning/datasources/datasources.yaml"
-              subPath: "datasources.yaml"
-          ports:
-            - name: grafana
-              containerPort: 3000
-              protocol: TCP
-            - name: gossip-tcp
-              containerPort: 9094
-              protocol: TCP
-            - name: gossip-udp
-              containerPort: 9094
-              protocol: UDP
-          env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            - name: GF_SECURITY_ADMIN_USER
-              valueFrom:
-                secretKeyRef:
-                  name: lgtm-grafana
-                  key: admin-user
-            - name: GF_SECURITY_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: lgtm-grafana
-                  key: admin-password
-            - name: GF_PATHS_DATA
-              value: /var/lib/grafana/
-            - name: GF_PATHS_LOGS
-              value: /var/log/grafana
-            - name: GF_PATHS_PLUGINS
-              value: /var/lib/grafana/plugins
-            - name: GF_PATHS_PROVISIONING
-              value: /etc/grafana/provisioning
-          livenessProbe:
-            failureThreshold: 10
-            httpGet:
-              path: /api/health
-              port: 3000
-            initialDelaySeconds: 60
-            timeoutSeconds: 30
+            readOnlyRootFilesystem: true
           readinessProbe:
             httpGet:
-              path: /api/health
-              port: 3000
+              path: /ready
+              port: http-metrics
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+          livenessProbe:
+            null
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki/config
+            - name: runtime-config
+              mountPath: /etc/loki/runtime-config
           resources:
             limits:
               cpu: 200m
@@ -1490,29 +951,355 @@ spec:
             requests:
               cpu: 50m
               memory: 128Mi
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: distributor
+            topologyKey: kubernetes.io/hostname
       volumes:
         - name: config
           configMap:
-            name: lgtm-grafana
-        - name: storage
-          emptyDir: {}
+            name: loki
+            items:
+              - key: "config.yaml"
+                path: "config.yaml"
+        - name: runtime-config
+          configMap:
+            name: loki-runtime
 ---
-# Source: lgtm-distributed/charts/mimir/charts/minio/templates/deployment.yaml
+# Source: lgtm-distributed/charts/loki/templates/querier/deployment-querier.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: lgtm-loki-querier
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "3.1.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: querier
+    app.kubernetes.io/part-of: memberlist
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+      app.kubernetes.io/instance: lgtm
+      app.kubernetes.io/component: querier
+  template:
+    metadata:
+      annotations:
+        checksum/config: 2a79ed5c83e3dc3330ad5e8e316cc0319e73df426335c55911206c359308d362
+      labels:
+        app.kubernetes.io/name: loki
+        app.kubernetes.io/instance: lgtm
+        app.kubernetes.io/component: querier
+        app.kubernetes.io/part-of: memberlist
+    spec:
+      topologySpreadConstraints:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: querier
+          maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+      serviceAccountName: lgtm
+      
+      securityContext:
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: querier
+          image: docker.io/grafana/loki:3.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config.file=/etc/loki/config/config.yaml
+            - -target=querier
+          ports:
+            - name: http-metrics
+              containerPort: 3100
+              protocol: TCP
+            - name: grpc
+              containerPort: 9095
+              protocol: TCP
+            - name: http-memberlist
+              containerPort: 7946
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http-metrics
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+          livenessProbe:
+            null
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki/config
+            - name: runtime-config
+              mountPath: /etc/loki/runtime-config
+            - name: data
+              mountPath: /var/loki
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: querier
+            topologyKey: kubernetes.io/hostname
+      volumes:
+        - name: config
+          configMap:
+            name: loki
+            items:
+              - key: "config.yaml"
+                path: "config.yaml"
+        - name: runtime-config
+          configMap:
+            name: loki-runtime
+        - name: data
+          emptyDir: {}
+---
+# Source: lgtm-distributed/charts/loki/templates/query-frontend/deployment-query-frontend.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lgtm-loki-query-frontend
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "3.1.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: query-frontend
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+      app.kubernetes.io/instance: lgtm
+      app.kubernetes.io/component: query-frontend
+  template:
+    metadata:
+      annotations:
+        checksum/config: 2a79ed5c83e3dc3330ad5e8e316cc0319e73df426335c55911206c359308d362
+      labels:
+        app.kubernetes.io/name: loki
+        app.kubernetes.io/instance: lgtm
+        app.kubernetes.io/component: query-frontend
+        app.kubernetes.io/part-of: memberlist
+    spec:
+      serviceAccountName: lgtm
+      
+      securityContext:
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: query-frontend
+          image: docker.io/grafana/loki:3.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config.file=/etc/loki/config/config.yaml
+            - -target=query-frontend
+          ports:
+            - name: http-metrics
+              containerPort: 3100
+              protocol: TCP
+            - name: grpc
+              containerPort: 9095
+              protocol: TCP
+            - name: http-memberlist
+              containerPort: 7946
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http-metrics
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki/config
+            - name: runtime-config
+              mountPath: /etc/loki/runtime-config
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: query-frontend
+            topologyKey: kubernetes.io/hostname
+      volumes:
+        - name: config
+          configMap:
+            name: loki
+            items:
+              - key: "config.yaml"
+                path: "config.yaml"
+        - name: runtime-config
+          configMap:
+            name: loki-runtime
+---
+# Source: lgtm-distributed/charts/loki/templates/query-scheduler/deployment-query-scheduler.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lgtm-loki-query-scheduler
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "3.1.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: query-scheduler
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+      app.kubernetes.io/instance: lgtm
+      app.kubernetes.io/component: query-scheduler
+  template:
+    metadata:
+      annotations:
+        checksum/config: 2a79ed5c83e3dc3330ad5e8e316cc0319e73df426335c55911206c359308d362
+      labels:
+        app.kubernetes.io/name: loki
+        app.kubernetes.io/instance: lgtm
+        app.kubernetes.io/component: query-scheduler
+        app.kubernetes.io/part-of: memberlist
+    spec:
+      serviceAccountName: lgtm
+      
+      securityContext:
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: query-scheduler
+          image: docker.io/grafana/loki:3.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config.file=/etc/loki/config/config.yaml
+            - -target=query-scheduler
+          ports:
+            - name: http-metrics
+              containerPort: 3100
+              protocol: TCP
+            - name: grpc
+              containerPort: 9095
+              protocol: TCP
+            - name: http-memberlist
+              containerPort: 7946
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http-metrics
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+          livenessProbe:
+            null
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki/config
+            - name: runtime-config
+              mountPath: /etc/loki/runtime-config
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: query-scheduler
+            topologyKey: kubernetes.io/hostname
+      volumes:
+        - name: config
+          configMap:
+            name: loki
+            items:
+              - key: "config.yaml"
+                path: "config.yaml"
+        - name: runtime-config
+          configMap:
+            name: loki-runtime
+---
+# Source: lgtm-distributed/charts/loki/charts/minio/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
   name: lgtm-minio
+  namespace: "lgtm-poc-8"
   labels:
     app: minio
-    chart: minio-5.4.0
+    chart: minio-4.0.15
     release: lgtm
     heritage: Helm
 spec:
-  strategy:
+  updateStrategy:
     type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 100%
-      maxUnavailable: 0
+  podManagementPolicy: "Parallel"
+  serviceName: lgtm-minio-svc
   replicas: 1
   selector:
     matchLabels:
@@ -1525,31 +1312,29 @@ spec:
         app: minio
         release: lgtm
       annotations:
-        checksum/secrets: cb3b57a18eb364f7aa6d220c9428da0663d0e1023cbdba244d79725ac419343d
-        checksum/config: 5fe779ceae1f801b97c97a162f92b5507b136c14ce8670f4c8e0d60572a72e6c
+        checksum/secrets: bb6eb18776deb7b7c400f3b203d77edf18c7c49c7596b3686fa9096f04ca5bdc
+        checksum/config: 68a2e10b14482e5c16f5b615b53e496349433ea0236aeacc742afb4e2d21f6c4
     spec:
       securityContext:
-        
+        runAsUser: 1000
+        runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
-        runAsGroup: 1000
-        runAsUser: 1000
-      
+
       serviceAccountName: minio-sa
       containers:
         - name: minio
-          image: "quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z"
+          image: quay.io/minio/minio:RELEASE.2022-09-17T00-09-45Z
           imagePullPolicy: IfNotPresent
-          command:
-            - "/bin/sh"
-            - "-ce"
-            - "/usr/bin/docker-entrypoint.sh minio server /export -S /etc/minio/certs/ --address :9000 --console-address :9001"
+
+          command: [ "/bin/sh",
+            "-ce",
+            "/usr/bin/docker-entrypoint.sh minio server  http://lgtm-minio-{0...0}.lgtm-minio-svc.lgtm-poc-8.svc.cluster.local/export-{0...1} -S /etc/minio/certs/ --address :9000 --console-address :9001" ]
           volumeMounts:
-            - name: minio-user
-              mountPath: "/tmp/credentials"
-              readOnly: true
-            - name: export
-              mountPath: /export            
+            - name: export-0
+              mountPath: /export-0
+            - name: export-1
+              mountPath: /export-1            
           ports:
             - name: http
               containerPort: 9000
@@ -1571,491 +1356,112 @@ spec:
           resources:
             requests:
               cpu: 50m
-              memory: 128Mi
-          securityContext: 
-            readOnlyRootFilesystem: false      
+              memory: 128Mi      
       volumes:
-        - name: export
-          persistentVolumeClaim:
-            claimName: lgtm-minio
         - name: minio-user
           secret:
-            secretName: lgtm-minio
+            secretName: lgtm-minio        
+  volumeClaimTemplates:
+    - metadata:
+        name: export-0
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 5Gi
+    - metadata:
+        name: export-1
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 5Gi
 ---
-# Source: lgtm-distributed/charts/mimir/templates/distributor/distributor-dep.yaml
+# Source: lgtm-distributed/charts/loki/templates/compactor/statefulset-compactor.yaml
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: lgtm-mimir-distributor
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: distributor
-    app.kubernetes.io/part-of: memberlist
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    {}
-  namespace: "lgtm-poc-8"
-spec:
-  # If replicas is not number (when using values file it's float64, when using --set arg it's int64) and is false (i.e. null) don't set it
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: mimir
-      app.kubernetes.io/instance: lgtm
-      app.kubernetes.io/component: distributor
-  strategy:
-    rollingUpdate:
-      maxSurge: 15%
-      maxUnavailable: 0
-    type: RollingUpdate
-  template:
-    metadata:
-      labels:
-        helm.sh/chart: mimir-5.7.0
-        app.kubernetes.io/name: mimir
-        app.kubernetes.io/instance: lgtm
-        app.kubernetes.io/version: "2.16.0"
-        app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/component: distributor
-        app.kubernetes.io/part-of: memberlist
-      annotations:
-        checksum/config: 1e5898a469188babdf46d22c8e17bf01f29c79f4a78697c79cab145b87b07f98
-      namespace: "lgtm-poc-8"
-    spec:
-      serviceAccountName: lgtm
-      securityContext:
-        fsGroup: 10001
-        runAsGroup: 10001
-        runAsNonRoot: true
-        runAsUser: 10001
-        seccompProfile:
-          type: RuntimeDefault
-      containers:
-        - name: distributor
-          image: grafana/mimir:2.16.0
-          imagePullPolicy: IfNotPresent
-          args:
-            - "-target=distributor"
-            - "-config.expand-env=true"
-            - "-config.file=/etc/mimir/mimir.yaml"
-            # When write requests go through distributors via gRPC, we want gRPC clients to re-resolve the distributors DNS
-            # endpoint before the distributor process is terminated, in order to avoid any failures during graceful shutdown.
-            # To achieve it, we set a shutdown delay greater than the gRPC max connection age.
-            - "-server.grpc.keepalive.max-connection-age=60s"
-            - "-server.grpc.keepalive.max-connection-age-grace=5m"
-            - "-server.grpc.keepalive.max-connection-idle=1m"
-            - "-shutdown-delay=90s"
-          volumeMounts:
-            - name: config
-              mountPath: /etc/mimir
-            - name: runtime-config
-              mountPath: /var/mimir
-            - name: storage
-              mountPath: "/data"
-            - name: active-queries
-              mountPath: /active-query-tracker
-          ports:
-            - name: http-metrics
-              containerPort: 8080
-              protocol: TCP
-            - name: grpc
-              containerPort: 9095
-              protocol: TCP
-            - name: memberlist
-              containerPort: 7946
-              protocol: TCP
-          livenessProbe:
-            null
-          readinessProbe:
-            httpGet:
-              path: /ready
-              port: http-metrics
-            initialDelaySeconds: 45
-          resources:
-            limits:
-              cpu: 200m
-              memory: 128Mi
-            requests:
-              cpu: 50m
-              memory: 128Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            readOnlyRootFilesystem: true
-          env:
-            - name: "GOMAXPROCS"
-              value: "8"
-            - name: "JAEGER_REPORTER_MAX_QUEUE_SIZE"
-              value: "1000"
-      topologySpreadConstraints:
-      - maxSkew: 1
-        topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: ScheduleAnyway
-        labelSelector:
-          matchLabels:
-            app.kubernetes.io/name: mimir
-            app.kubernetes.io/instance: lgtm
-            app.kubernetes.io/component: distributor
-      terminationGracePeriodSeconds: 100
-      volumes:
-        - name: config
-          configMap:
-            name: lgtm-mimir-config
-            items:
-              - key: "mimir.yaml"
-                path: "mimir.yaml"
-        - name: runtime-config
-          configMap:
-            name: lgtm-mimir-runtime
-        - name: storage
-          emptyDir: {}
-        - name: active-queries
-          emptyDir: {}
----
-# Source: lgtm-distributed/charts/mimir/templates/querier/querier-dep.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: lgtm-mimir-querier
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: querier
-    app.kubernetes.io/part-of: memberlist
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    {}
-  namespace: "lgtm-poc-8"
-spec:
-  # If replicas is not number (when using values file it's float64, when using --set arg it's int64) and is false (i.e. null) don't set it
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: mimir
-      app.kubernetes.io/instance: lgtm
-      app.kubernetes.io/component: querier
-  strategy:
-    rollingUpdate:
-      maxSurge: 15%
-      maxUnavailable: 0
-    type: RollingUpdate
-  template:
-    metadata:
-      labels:
-        helm.sh/chart: mimir-5.7.0
-        app.kubernetes.io/name: mimir
-        app.kubernetes.io/instance: lgtm
-        app.kubernetes.io/version: "2.16.0"
-        app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/component: querier
-        app.kubernetes.io/part-of: memberlist
-      annotations:
-        checksum/config: 1e5898a469188babdf46d22c8e17bf01f29c79f4a78697c79cab145b87b07f98
-    spec:
-      serviceAccountName: lgtm
-      securityContext:
-        fsGroup: 10001
-        runAsGroup: 10001
-        runAsNonRoot: true
-        runAsUser: 10001
-        seccompProfile:
-          type: RuntimeDefault
-      containers:
-        - name: querier
-          image: grafana/mimir:2.16.0
-          imagePullPolicy: IfNotPresent
-          args:
-            - "-target=querier"
-            - "-config.expand-env=true"
-            - "-config.file=/etc/mimir/mimir.yaml"
-          volumeMounts:
-            - name: config
-              mountPath: /etc/mimir
-            - name: runtime-config
-              mountPath: /var/mimir
-            - name: storage
-              mountPath: "/data"
-            - name: active-queries
-              mountPath: /active-query-tracker
-          ports:
-            - name: http-metrics
-              containerPort: 8080
-              protocol: TCP
-            - name: grpc
-              containerPort: 9095
-              protocol: TCP
-            - name: memberlist
-              containerPort: 7946
-              protocol: TCP
-          livenessProbe:
-            null
-          readinessProbe:
-            httpGet:
-              path: /ready
-              port: http-metrics
-            initialDelaySeconds: 45
-          resources:
-            limits:
-              cpu: 200m
-              memory: 128Mi
-            requests:
-              cpu: 50m
-              memory: 128Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            readOnlyRootFilesystem: true
-          env:
-            - name: "GOMAXPROCS"
-              value: "5"
-            - name: "JAEGER_REPORTER_MAX_QUEUE_SIZE"
-              value: "5000"
-      topologySpreadConstraints:
-      - maxSkew: 1
-        topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: ScheduleAnyway
-        labelSelector:
-          matchLabels:
-            app.kubernetes.io/name: mimir
-            app.kubernetes.io/instance: lgtm
-            app.kubernetes.io/component: querier
-      terminationGracePeriodSeconds: 180
-      volumes:
-        - name: config
-          configMap:
-            name: lgtm-mimir-config
-            items:
-              - key: "mimir.yaml"
-                path: "mimir.yaml"
-        - name: runtime-config
-          configMap:
-            name: lgtm-mimir-runtime
-        - name: storage
-          emptyDir: {}
-        - name: active-queries
-          emptyDir: {}
----
-# Source: lgtm-distributed/charts/mimir/templates/query-frontend/query-frontend-dep.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: lgtm-mimir-query-frontend
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: query-frontend
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    {}
-  namespace: "lgtm-poc-8"
-spec:
-  # If replicas is not number (when using values file it's float64, when using --set arg it's int64) and is false (i.e. null) don't set it
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: mimir
-      app.kubernetes.io/instance: lgtm
-      app.kubernetes.io/component: query-frontend
-  strategy:
-    rollingUpdate:
-      maxSurge: 15%
-      maxUnavailable: 0
-    type: RollingUpdate
-  template:
-    metadata:
-      labels:
-        helm.sh/chart: mimir-5.7.0
-        app.kubernetes.io/name: mimir
-        app.kubernetes.io/instance: lgtm
-        app.kubernetes.io/version: "2.16.0"
-        app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/component: query-frontend
-      annotations:
-        checksum/config: 1e5898a469188babdf46d22c8e17bf01f29c79f4a78697c79cab145b87b07f98
-      namespace: "lgtm-poc-8"
-    spec:
-      serviceAccountName: lgtm
-      securityContext:
-        fsGroup: 10001
-        runAsGroup: 10001
-        runAsNonRoot: true
-        runAsUser: 10001
-        seccompProfile:
-          type: RuntimeDefault
-      containers:
-        - name: query-frontend
-          image: grafana/mimir:2.16.0
-          imagePullPolicy: IfNotPresent
-          args:
-            - "-target=query-frontend"
-            - "-config.expand-env=true"
-            - "-config.file=/etc/mimir/mimir.yaml"
-            # Reduce the likelihood of queries hitting terminated query-frontends.
-            - "-server.grpc.keepalive.max-connection-age=30s"
-            - "-shutdown-delay=90s"
-          volumeMounts:
-            - name: runtime-config
-              mountPath: /var/mimir
-            - name: config
-              mountPath: /etc/mimir
-            - name: storage
-              mountPath: /data
-            - name: active-queries
-              mountPath: /active-query-tracker
-          ports:
-            - name: http-metrics
-              containerPort: 8080
-              protocol: TCP
-            - name: grpc
-              containerPort: 9095
-              protocol: TCP
-          livenessProbe:
-            null
-          readinessProbe:
-            httpGet:
-              path: /ready
-              port: http-metrics
-            initialDelaySeconds: 45
-          resources:
-            limits:
-              cpu: 200m
-              memory: 128Mi
-            requests:
-              cpu: 50m
-              memory: 128Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            readOnlyRootFilesystem: true
-          env:
-            - name: "JAEGER_REPORTER_MAX_QUEUE_SIZE"
-              value: "5000"
-      topologySpreadConstraints:
-      - maxSkew: 1
-        topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: ScheduleAnyway
-        labelSelector:
-          matchLabels:
-            app.kubernetes.io/name: mimir
-            app.kubernetes.io/instance: lgtm
-            app.kubernetes.io/component: query-frontend
-      terminationGracePeriodSeconds: 390
-      volumes:
-        - name: config
-          configMap:
-            name: lgtm-mimir-config
-            items:
-              - key: "mimir.yaml"
-                path: "mimir.yaml"
-        - name: runtime-config
-          configMap:
-            name: lgtm-mimir-runtime
-        - name: storage
-          emptyDir: {}
-        - name: active-queries
-          emptyDir: {}
----
-# Source: lgtm-distributed/charts/otelcol/templates/deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: lgtm-otelcol
+  name: lgtm-loki-compactor
   namespace: lgtm-poc-8
   labels:
-    helm.sh/chart: otelcol-0.133.0
-    app.kubernetes.io/name: otelcol
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
     app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/version: "0.134.1"
+    app.kubernetes.io/version: "3.1.0"
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/part-of: opentelemetry-collector
-    app.kubernetes.io/component: standalone-collector
+    app.kubernetes.io/component: compactor
+    app.kubernetes.io/part-of: memberlist
 spec:
   replicas: 1
+  podManagementPolicy: Parallel
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+  serviceName: lgtm-loki-compactor-headless
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app.kubernetes.io/name: otelcol
+      app.kubernetes.io/name: loki
       app.kubernetes.io/instance: lgtm
-      component: standalone-collector
-  strategy:
-    type: RollingUpdate
+      app.kubernetes.io/component: compactor
   template:
     metadata:
       annotations:
-        checksum/config: cb52d0a8b6efb7cd3b1a78218afae28b4091096ad339c1400abacb960803c66f
-        
+        checksum/config: 2a79ed5c83e3dc3330ad5e8e316cc0319e73df426335c55911206c359308d362
       labels:
-        app.kubernetes.io/name: otelcol
+        app.kubernetes.io/name: loki
         app.kubernetes.io/instance: lgtm
-        component: standalone-collector
-        
+        app.kubernetes.io/component: compactor
+        app.kubernetes.io/part-of: memberlist
     spec:
-      
       serviceAccountName: lgtm
-      automountServiceAccountToken: true
+      
       securityContext:
-        {}
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+      terminationGracePeriodSeconds: 30
       containers:
-        - name: otelcol
-          command:
-            - /otelcol-k8s
-          args:
-            - --config=/conf/relay.yaml
-          securityContext:
-            {}
-          image: "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s:0.134.1"
+        - name: compactor
+          image: docker.io/grafana/loki:3.1.0
           imagePullPolicy: IfNotPresent
+          args:
+            - -config.file=/etc/loki/config/config.yaml
+            - -target=compactor
           ports:
-            
-            - name: jaeger-compact
-              containerPort: 6831
-              protocol: UDP
-            - name: jaeger-grpc
-              containerPort: 14250
+            - name: http-metrics
+              containerPort: 3100
               protocol: TCP
-            - name: jaeger-thrift
-              containerPort: 14268
+            - name: grpc
+              containerPort: 9095
               protocol: TCP
-            - name: otlp
-              containerPort: 4317
+            - name: http-memberlist
+              containerPort: 7946
               protocol: TCP
-            - name: otlp-http
-              containerPort: 4318
-              protocol: TCP
-            - name: zipkin
-              containerPort: 9411
-              protocol: TCP
-          env:
-            - name: MY_POD_IP
-              valueFrom:
-                fieldRef:
-                  apiVersion: v1
-                  fieldPath: status.podIP
-            - name: GOMEMLIMIT
-              value: "102MiB"
-            - name: OTEL_SERVICE_NAME
-              value: '{{ .Release.Name }}-otelcol'
-          livenessProbe:
-            httpGet:
-              path: /
-              port: 13133
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          
           readinessProbe:
             httpGet:
-              path: /
-              port: 13133
+              path: /ready
+              port: http-metrics
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+          
+          volumeMounts:
+            - name: temp
+              mountPath: /tmp
+            - name: config
+              mountPath: /etc/loki/config
+            - name: runtime-config
+              mountPath: /etc/loki/runtime-config
+            - name: data
+              mountPath: /var/loki
           resources:
             limits:
               cpu: 200m
@@ -2063,136 +1469,226 @@ spec:
             requests:
               cpu: 50m
               memory: 128Mi
-          volumeMounts:
-            - mountPath: /conf
-              name: otelcol-configmap
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: compactor
+            topologyKey: kubernetes.io/hostname
       volumes:
-        - name: otelcol-configmap
+        - name: temp
+          emptyDir: {}
+        - name: config
           configMap:
-            name: lgtm-otelcol
+            name: loki
             items:
-              - key: relay
-                path: relay.yaml
-      hostNetwork: false
+              - key: "config.yaml"
+                path: "config.yaml"
+        - name: runtime-config
+          configMap:
+            name: loki-runtime
+        - name: data
+          emptyDir: {}
 ---
-# Source: lgtm-distributed/charts/mimir/templates/ingester/ingester-statefulset.yaml
+# Source: lgtm-distributed/charts/loki/templates/index-gateway/statefulset-index-gateway.yaml
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: lgtm-mimir-ingester
+  name: lgtm-loki-index-gateway
   labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
     app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "3.1.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: index-gateway
+spec:
+  replicas: 1
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+  serviceName: lgtm-loki-index-gateway-headless
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+      app.kubernetes.io/instance: lgtm
+      app.kubernetes.io/component: index-gateway
+  template:
+    metadata:
+      annotations:
+        checksum/config: 2a79ed5c83e3dc3330ad5e8e316cc0319e73df426335c55911206c359308d362
+      labels:
+        app.kubernetes.io/name: loki
+        app.kubernetes.io/instance: lgtm
+        app.kubernetes.io/component: index-gateway
+        app.kubernetes.io/part-of: memberlist
+    spec:
+      serviceAccountName: lgtm
+      
+      securityContext:
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+      terminationGracePeriodSeconds: 300
+      containers:
+        - name: index-gateway
+          image: docker.io/grafana/loki:3.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config.file=/etc/loki/config/config.yaml
+            - -target=index-gateway
+          ports:
+            - name: http-metrics
+              containerPort: 3100
+              protocol: TCP
+            - name: grpc
+              containerPort: 9095
+              protocol: TCP
+            - name: http-memberlist
+              containerPort: 7946
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http-metrics
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+          livenessProbe:
+            null
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki/config
+            - name: runtime-config
+              mountPath: /etc/loki/runtime-config
+            - name: data
+              mountPath: /var/loki
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: index-gateway
+            topologyKey: kubernetes.io/hostname
+      volumes:
+        - name: config
+          configMap:
+            name: loki
+            items:
+              - key: "config.yaml"
+                path: "config.yaml"
+        - name: runtime-config
+          configMap:
+            name: loki-runtime
+        - name: data
+          emptyDir: {}
+---
+# Source: lgtm-distributed/charts/loki/templates/ingester/statefulset-ingester.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: lgtm-loki-ingester
+  namespace: lgtm-poc-8
+  labels:
+    helm.sh/chart: loki-6.9.0
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: lgtm
+    app.kubernetes.io/version: "3.1.0"
+    app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: ingester
     app.kubernetes.io/part-of: memberlist
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    {}
-  namespace: "lgtm-poc-8"
 spec:
-  podManagementPolicy: Parallel
   replicas: 1
+  podManagementPolicy: Parallel
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+  serviceName: lgtm-loki-ingester-headless
+  revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app.kubernetes.io/name: mimir
+      app.kubernetes.io/name: loki
       app.kubernetes.io/instance: lgtm
       app.kubernetes.io/component: ingester
-  updateStrategy:
-    type: RollingUpdate
-  serviceName: lgtm-mimir-ingester-headless
-  volumeClaimTemplates:
-    - apiVersion: v1
-      kind: PersistentVolumeClaim
-      metadata:
-        name: storage
-      spec:
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: "2Gi"
   template:
     metadata:
+      annotations:
+        checksum/config: 2a79ed5c83e3dc3330ad5e8e316cc0319e73df426335c55911206c359308d362
       labels:
-        helm.sh/chart: mimir-5.7.0
-        app.kubernetes.io/name: mimir
+        app.kubernetes.io/name: loki
         app.kubernetes.io/instance: lgtm
-        app.kubernetes.io/version: "2.16.0"
-        app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/component: ingester
         app.kubernetes.io/part-of: memberlist
-      annotations:
-        checksum/config: 1e5898a469188babdf46d22c8e17bf01f29c79f4a78697c79cab145b87b07f98
-      namespace: "lgtm-poc-8"
     spec:
+      topologySpreadConstraints:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: ingester
+          maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
       serviceAccountName: lgtm
+      
       securityContext:
         fsGroup: 10001
         runAsGroup: 10001
         runAsNonRoot: true
         runAsUser: 10001
-        seccompProfile:
-          type: RuntimeDefault
-      topologySpreadConstraints:
-      - maxSkew: 1
-        topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: ScheduleAnyway
-        labelSelector:
-          matchLabels:
-            app.kubernetes.io/name: mimir
-            app.kubernetes.io/instance: lgtm
-            app.kubernetes.io/component: ingester
-      terminationGracePeriodSeconds: 1200
-      volumes:
-        - name: config
-          configMap:
-            name: lgtm-mimir-config
-            items:
-              - key: "mimir.yaml"
-                path: "mimir.yaml"
-        - name: runtime-config
-          configMap:
-            name: lgtm-mimir-runtime
-        - name: active-queries
-          emptyDir: {}
+      terminationGracePeriodSeconds: 300
       containers:
         - name: ingester
-          image: grafana/mimir:2.16.0
+          image: docker.io/grafana/loki:3.1.0
           imagePullPolicy: IfNotPresent
           args:
-            - "-target=ingester"
-            - "-config.expand-env=true"
-            - "-config.file=/etc/mimir/mimir.yaml"
-            - "-ingester.ring.instance-availability-zone=zone-default"
-            - "-server.grpc-max-concurrent-streams=500"
-          volumeMounts:
-            - name: config
-              mountPath: /etc/mimir
-            - name: runtime-config
-              mountPath: /var/mimir
-            - name: storage
-              mountPath: "/data"
-            - name: active-queries
-              mountPath: /active-query-tracker
+            - -config.file=/etc/loki/config/config.yaml
+            - -ingester.availability-zone=zone-default
+            - -target=ingester
           ports:
             - name: http-metrics
-              containerPort: 8080
+              containerPort: 3100
               protocol: TCP
             - name: grpc
               containerPort: 9095
               protocol: TCP
-            - name: memberlist
+            - name: http-memberlist
               containerPort: 7946
               protocol: TCP
-          livenessProbe:
-            null
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          
           readinessProbe:
             httpGet:
               path: /ready
               port: http-metrics
-            initialDelaySeconds: 60
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+          
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki/config
+            - name: runtime-config
+              mountPath: /etc/loki/runtime-config
+            - name: data
+              mountPath: /var/loki
           resources:
             limits:
               cpu: 200m
@@ -2200,200 +1696,22 @@ spec:
             requests:
               cpu: 50m
               memory: 128Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            readOnlyRootFilesystem: true
-          env:
-            
-            - name: "GOMAXPROCS"
-              value: "4"
-            - name: "JAEGER_REPORTER_MAX_QUEUE_SIZE"
-              value: "1000"
----
-# Source: lgtm-distributed/charts/mimir/templates/store-gateway/store-gateway-statefulset.yaml
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: lgtm-mimir-store-gateway
-  labels:
-    helm.sh/chart: mimir-5.7.0
-    app.kubernetes.io/name: mimir
-    app.kubernetes.io/instance: lgtm
-    app.kubernetes.io/component: store-gateway
-    app.kubernetes.io/part-of: memberlist
-    app.kubernetes.io/version: "2.16.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    {}
-  namespace: "lgtm-poc-8"
-spec:
-  podManagementPolicy: OrderedReady
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: mimir
-      app.kubernetes.io/instance: lgtm
-      app.kubernetes.io/component: store-gateway
-  updateStrategy:
-    type: RollingUpdate
-  serviceName: lgtm-mimir-store-gateway-headless
-  volumeClaimTemplates:
-    - apiVersion: v1
-      kind: PersistentVolumeClaim
-      metadata:
-        name: storage
-      spec:
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: "2Gi"
-  template:
-    metadata:
-      labels:
-        helm.sh/chart: mimir-5.7.0
-        app.kubernetes.io/name: mimir
-        app.kubernetes.io/instance: lgtm
-        app.kubernetes.io/version: "2.16.0"
-        app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/component: store-gateway
-        app.kubernetes.io/part-of: memberlist
-      annotations:
-        checksum/config: 1e5898a469188babdf46d22c8e17bf01f29c79f4a78697c79cab145b87b07f98
-      namespace: "lgtm-poc-8"
-    spec:
-      serviceAccountName: lgtm
-      securityContext:
-        fsGroup: 10001
-        runAsGroup: 10001
-        runAsNonRoot: true
-        runAsUser: 10001
-        seccompProfile:
-          type: RuntimeDefault
-      topologySpreadConstraints:
-      - maxSkew: 1
-        topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: ScheduleAnyway
-        labelSelector:
-          matchLabels:
-            app.kubernetes.io/name: mimir
-            app.kubernetes.io/instance: lgtm
-            app.kubernetes.io/component: store-gateway
-      terminationGracePeriodSeconds: 120
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: ingester
+            topologyKey: kubernetes.io/hostname
       volumes:
         - name: config
           configMap:
-            name: lgtm-mimir-config
+            name: loki
             items:
-              - key: "mimir.yaml"
-                path: "mimir.yaml"
+              - key: "config.yaml"
+                path: "config.yaml"
         - name: runtime-config
           configMap:
-            name: lgtm-mimir-runtime
-        - name: active-queries
-          emptyDir: {}
-      containers:
-        - name: store-gateway
-          image: grafana/mimir:2.16.0
-          imagePullPolicy: IfNotPresent
-          args:
-            - "-target=store-gateway"
-            - "-config.expand-env=true"
-            - "-config.file=/etc/mimir/mimir.yaml"
-          volumeMounts:
-            - name: config
-              mountPath: /etc/mimir
-            - name: runtime-config
-              mountPath: /var/mimir
-            - name: storage
-              mountPath: "/data"
-            - name: active-queries
-              mountPath: /active-query-tracker
-          ports:
-            - name: http-metrics
-              containerPort: 8080
-              protocol: TCP
-            - name: grpc
-              containerPort: 9095
-              protocol: TCP
-            - name: memberlist
-              containerPort: 7946
-              protocol: TCP
-          livenessProbe:
-            null
-          readinessProbe:
-            httpGet:
-              path: /ready
-              port: http-metrics
-            initialDelaySeconds: 60
-          resources:
-            limits:
-              cpu: 200m
-              memory: 128Mi
-            requests:
-              cpu: 50m
-              memory: 128Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            readOnlyRootFilesystem: true
-          env:
-            - name: "GOMAXPROCS"
-              value: "5"
-            - name: "GOMEMLIMIT"
-              value: "134217728"
-            - name: "JAEGER_REPORTER_MAX_QUEUE_SIZE"
-              value: "1000"
----
-# Source: lgtm-distributed/charts/mimir/templates/minio/create-bucket-job.yaml
-# Minio provides post-install hook to create bucket
-# however the hook won't be executed if helm install is run
-# with --wait flag. Hence this job is a workaround for that.
-# See https://github.com/grafana/mimir/issues/2464
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: lgtm-mimir-make-minio-buckets-5.4.0
-  namespace: "lgtm-poc-8"
-  labels:
-    app: mimir-make-bucket-job
-    chart: mimir-5.7.0
-    release: lgtm
-    heritage: Helm
-spec:
-  template:
-    metadata:
-      labels:
-        app: mimir-job
-        release: lgtm
-    spec:
-      restartPolicy: OnFailure      
-      volumes:
-        - name: minio-configuration
-          projected:
-            sources:
-            - configMap:
-                name: lgtm-minio
-            - secret:
-                name: lgtm-minio
-      containers:
-      - name: minio-mc
-        image: "quay.io/minio/mc:RELEASE.2024-11-21T17-21-54Z"
-        imagePullPolicy: IfNotPresent
-        command: ["/bin/sh", "/config/initialize"]
-        env:
-          - name: MINIO_ENDPOINT
-            value: lgtm-minio
-          - name: MINIO_PORT
-            value: "9000"
-        volumeMounts:
-          - name: minio-configuration
-            mountPath: /config
-        resources:
-          requests:
-            memory: 128Mi
+            name: loki-runtime
+        - name: data
+          emptyDir: { }
