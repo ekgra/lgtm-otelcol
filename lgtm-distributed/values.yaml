@@ -33,6 +33,16 @@ grafana:
           type: loki
           url: http://{{ .Release.Name }}-loki-query-frontend:3100
           isDefault: false
+        # Mimir (Prometheus) datasource pointing to query-frontend (no gateway)
+        - name: Mimir
+          uid: prom
+          type: prometheus
+          url: http://{{ .Release.Name }}-mimir-query-frontend:8080/prometheus
+          isDefault: true
+          jsonData:
+            httpHeaderName1: "X-Scope-OrgID"
+          secureJsonData:
+            httpHeaderValue1: "tenant-1"
         # # https://grafana.com/docs/grafana/latest/datasources/prometheus/#provision-the-data-source
         # - name: Mimir
         #   uid: prom
@@ -199,59 +209,110 @@ loki:
 # -- Mimir chart values. Resources are set to a minimum by default.
 mimir:
   # -- Deploy Mimir if enabled. See [upstream values.yaml](https://github.com/grafana/mimir/blob/main/operations/helm/charts/mimir-distributed/values.yaml) for full values reference.
-  enabled: false
+  enabled: true
+  image:
+    repository: grafana/mimir
+    tag: "2.16.0"
+  # Nested config block used by the subchart to build mimir.yaml
+  mimir:
+    structuredConfig:
+      ingester:
+        ring:
+          replication_factor: 1
+      limits:
+        out_of_order_time_window: 10m
+  serviceAccount:
+    create: false
+    name: lgtm  
   alertmanager:
-    resources:
-      requests:
-        cpu: 20m
+    enabled: false
+    replicas: 0
+    statefulSet:
+      enabled: false
   compactor:
-    resources:
-      requests:
-        cpu: 20m
+    enabled: false
   distributor:
+    replicas: 1
     resources:
       requests:
-        cpu: 20m
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
   ingester:
-    replicas: 2
+    replicas: 1
     zoneAwareReplication:
       enabled: false
     resources:
       requests:
-        cpu: 20m
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
   overrides_exporter:
-    resources:
-      requests:
-        cpu: 20m
+    enabled: false
+    replicas: 0
   querier:
     replicas: 1
     resources:
       requests:
-        cpu: 20m
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
   query_frontend:
-    resources:
-      requests:
-        cpu: 20m
-  query_scheduler:
     replicas: 1
     resources:
       requests:
-        cpu: 20m
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  query_scheduler:
+    enabled: false
+    replicas: 0
   ruler:
-    resources:
-      requests:
-        cpu: 20m
+    enabled: false
+    replicas: 0
   store_gateway:
+    replicas: 1
     zoneAwareReplication:
       enabled: false
     resources:
       requests:
-        cpu: 20m
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
   minio:
+    enabled: true
+    persistence:
+      size: 5Gi
     resources:
       requests:
-        cpu: 20m
+        cpu: 50m
+        memory: 128Mi
+
+  # Disable gateway (nginx)
+  nginx:
+    enabled: false
+
+  # Disable memcached-based caches (chart 5.7.0 keys)
+  chunks-cache:
+    enabled: false
+  index-cache:
+    enabled: false
+  metadata-cache:
+    enabled: false
+  results-cache:
+    enabled: false
   rollout_operator:
+    enabled: false
     resources:
       requests:
         cpu: 20m
@@ -352,6 +413,11 @@ otelcol:
         logs_endpoint: "/otlp/v1/logs"
         tls:
           insecure: true
+      # Send metrics to Mimir via native OTLP/HTTP
+      otlphttp/mimir:
+        endpoint: "http://{{ .Release.Name }}-mimir-distributor:8080/otlp"
+        headers:
+          X-Scope-OrgID: "tenant-1"
     service:
       pipelines:
         traces:
@@ -366,16 +432,26 @@ otelcol:
             - batch
           exporters:
             - otlphttp/loki
+        # Receive OTLP + scrape self metrics; export to Mimir
+        metrics:
+          receivers:
+            - otlp
+            - prometheus
+          processors:
+            - memory_limiter
+            - batch
+          exporters:
+            - otlphttp/mimir
   # Export the Collector's own traces to Tempo via OTLP/HTTP
-  internalTelemetryViaOTLP:
+  # internalTelemetryViaOTLP:
     # traces:
     #   enabled: true
     #   endpoint: "http://{{ .Release.Name }}-tempo-distributor:4318"
-    logs:
-      enabled: true
-      # Loop internal logs back to this collector's OTLP receiver
-      # endpoint: "http://${env:MY_POD_IP}:4318"
-      endpoint: "http://{{ .Release.Name }}-loki-distributor:3100/otlp/v1/logs"
+    # logs:
+    #   enabled: true
+    #   # Loop internal logs back to this collector's OTLP receiver
+    #   # endpoint: "http://${env:MY_POD_IP}:4318"
+    #   endpoint: "http://{{ .Release.Name }}-loki-distributor:3100/otlp/v1/logs"
   # Give self-telemetry a friendly service name
   extraEnvs:
     - name: OTEL_SERVICE_NAME
