@@ -1,3 +1,4 @@
+{{- if and .Values.ingester.enabled (not .Values.federation_frontend.disableOtherComponents) }}
 {{- $args := dict "ctx" . "component" "ingester" "memberlist" true -}}
 {{- $zonesMap := include "mimir.zoneAwareReplicationMap" $args | fromYaml -}}
 {{- range $zoneName, $rolloutZone := $zonesMap }}
@@ -31,15 +32,18 @@ spec:
     {{- end }}
   serviceName: {{ template "mimir.fullname" . }}-ingester{{- if not .Values.enterprise.legacyLabels -}}-headless{{- end -}}
   {{- if .Values.ingester.persistentVolume.enabled }}
+  {{- with .Values.ingester.persistentVolume }}
   volumeClaimTemplates:
-    - metadata:
-        name: storage
-        {{- if .Values.ingester.persistentVolume.annotations }}
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: {{ .name }}
+        {{- if .annotations }}
         annotations:
-          {{- toYaml .Values.ingester.persistentVolume.annotations | nindent 10 }}
+          {{- toYaml .annotations | nindent 10 }}
         {{- end }}
       spec:
-        {{- $storageClass := default .Values.ingester.persistentVolume.storageClass $rolloutZone.storageClass }}
+        {{- $storageClass := default .storageClass $rolloutZone.storageClass }}
         {{- if $storageClass }}
         {{- if (eq "-" $storageClass) }}
         storageClassName: ""
@@ -48,10 +52,11 @@ spec:
         {{- end }}
         {{- end }}
         accessModes:
-          {{- toYaml .Values.ingester.persistentVolume.accessModes | nindent 10 }}
+          {{- toYaml .accessModes | nindent 10 }}
         resources:
           requests:
-            storage: "{{ .Values.ingester.persistentVolume.size }}"
+            storage: "{{ .size }}"
+  {{- end }}
   {{- end }}
   template:
     metadata:
@@ -112,6 +117,9 @@ spec:
         {{- if .Values.ingester.extraVolumes }}
         {{ toYaml .Values.ingester.extraVolumes | nindent 8 }}
         {{- end }}
+        {{- if .Values.global.extraVolumes }}
+        {{ toYaml .Values.global.extraVolumes | nindent 8 }}
+        {{- end }}
         - name: active-queries
           emptyDir: {}
       containers:
@@ -119,7 +127,7 @@ spec:
         {{ toYaml .Values.ingester.extraContainers | nindent 8 }}
         {{- end }}
         - name: ingester
-          image: "{{ include "mimir.imageReference" . }}"
+          image: {{ include "mimir.imageReference" (dict "ctx" . "component" "ingester") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - "-target=ingester"
@@ -136,11 +144,14 @@ spec:
             - "-server.grpc-max-concurrent-streams=500"
             {{- end }}
             {{- range $key, $value := .Values.ingester.extraArgs }}
-            - "-{{ $key }}={{ $value }}"
+            - -{{ $key }}={{ $value }}
             {{- end }}
           volumeMounts:
             {{- if .Values.ingester.extraVolumeMounts }}
             {{ toYaml .Values.ingester.extraVolumeMounts | nindent 12}}
+            {{- end }}
+            {{- if .Values.global.extraVolumeMounts }}
+            {{ toYaml .Values.global.extraVolumeMounts | nindent 12}}
             {{- end }}
             - name: config
               mountPath: /etc/mimir
@@ -150,7 +161,6 @@ spec:
               mountPath: "/data"
               {{- if .Values.ingester.persistentVolume.subPath }}
               subPath: {{ .Values.ingester.persistentVolume.subPath }}
-              {{- else }}
               {{- end }}
             {{- if .Values.enterprise.enabled }}
             - name: license
@@ -176,18 +186,28 @@ spec:
             {{- toYaml .Values.ingester.resources | nindent 12 }}
           securityContext:
             {{- toYaml .Values.ingester.containerSecurityContext | nindent 12 }}
+          {{- $jaeger_queue_size := dig "jaegerReporterMaxQueueSize" nil .Values.ingester }}
+          {{- if or .Values.global.extraEnv .Values.ingester.env $jaeger_queue_size }}
           env:
+            {{- $cpu_request := dig "requests" "cpu" nil .Values.ingester.resources }}
+            {{- if $cpu_request }}
+              {{- $cpu_request_between_3_and_6 := include "mimir.parseCPU" (dict "value" $cpu_request) | float64 | min 6 | max 3 }}
+            {{/* copy logic from operations/mimir/ingester.libsonnet */}}
+            - name: "GOMAXPROCS"
+              value: {{ addf $cpu_request $cpu_request_between_3_and_6 1 | ceil | toString | toYaml }}
+            {{- end }}
             {{- with .Values.global.extraEnv }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
             {{- with .Values.ingester.env }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
-            {{- $jaeger_queue_size := dig "jaegerReporterMaxQueueSize" nil .Values.ingester }}
             {{- if $jaeger_queue_size }}
             - name: "JAEGER_REPORTER_MAX_QUEUE_SIZE"
               value: {{$jaeger_queue_size | toString | toYaml }}
             {{- end }}
+          {{- end }}
+          {{- if or .Values.global.extraEnvFrom .Values.ingester.extraEnvFrom }}
           envFrom:
             {{- with .Values.global.extraEnvFrom }}
               {{- toYaml . | nindent 12 }}
@@ -195,6 +215,8 @@ spec:
             {{- with .Values.ingester.extraEnvFrom }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- end }}
 ---
+{{ end }}
 {{ end }}
 {{ end }}

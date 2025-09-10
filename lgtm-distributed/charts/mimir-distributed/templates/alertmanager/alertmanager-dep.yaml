@@ -1,4 +1,4 @@
-{{- if .Values.alertmanager.enabled -}}
+{{- if and .Values.alertmanager.enabled (not .Values.federation_frontend.disableOtherComponents) -}}
 {{- if not .Values.alertmanager.statefulSet.enabled -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -27,7 +27,7 @@ spec:
         {{- end }}
       namespace: {{ .Release.Namespace | quote }}
     spec:
-      serviceAccountName: {{ template "mimir.serviceAccountName" . }}
+      serviceAccountName: {{ template "mimir.alertmanager.serviceAccountName" . }}
       {{- if .Values.alertmanager.priorityClassName }}
       priorityClassName: {{ .Values.query_frontend.priorityClassName }}
       {{- end }}
@@ -45,18 +45,21 @@ spec:
       {{- end }}
       containers:
         - name: alertmanager
-          image: "{{ include "mimir.imageReference" . }}"
+          image: {{ include "mimir.imageReference" (dict "ctx" . "component" "alertmanager") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - "-target=alertmanager"
             - "-config.expand-env=true"
             - "-config.file=/etc/mimir/mimir.yaml"
           {{- range $key, $value := .Values.alertmanager.extraArgs }}
-            - "-{{ $key }}={{ $value }}"
+            - -{{ $key }}={{ $value }}
           {{- end }}
           volumeMounts:
             {{- if .Values.alertmanager.extraVolumeMounts }}
               {{ toYaml .Values.alertmanager.extraVolumeMounts | nindent 12}}
+            {{- end }}
+            {{- if .Values.global.extraVolumeMounts }}
+              {{ toYaml .Values.global.extraVolumeMounts | nindent 12}}
             {{- end }}
             - name: config
               mountPath: /etc/mimir
@@ -68,7 +71,9 @@ spec:
               mountPath: /var/{{ include "mimir.name" . }}
             - name: storage
               mountPath: "/data"
+              {{- if .Values.alertmanager.persistence.subPath }}
               subPath: {{ .Values.alertmanager.persistence.subPath }}
+              {{- end }}
             {{- if .Values.alertmanager.fallbackConfig }}
             - name: alertmanager-fallback-config
               mountPath: /configs/
@@ -95,6 +100,7 @@ spec:
             {{- toYaml .Values.alertmanager.resources | nindent 12 }}
           securityContext:
             {{- toYaml .Values.alertmanager.containerSecurityContext | nindent 12 }}
+          {{- if or .Values.global.extraEnv .Values.alertmanager.env }}
           env:
             {{- with .Values.global.extraEnv }}
               {{- toYaml . | nindent 12 }}
@@ -102,6 +108,8 @@ spec:
             {{- with .Values.alertmanager.env }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- end }}
+          {{- if or .Values.global.extraEnvFrom .Values.alertmanager.extraEnvFrom }}
           envFrom:
             {{- with .Values.global.extraEnvFrom }}
               {{- toYaml . | nindent 12 }}
@@ -109,6 +117,7 @@ spec:
             {{- with .Values.alertmanager.extraEnvFrom }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- end }}
 {{- if .Values.alertmanager.extraContainers }}
 {{ toYaml .Values.alertmanager.extraContainers | indent 8}}
 {{- end }}
@@ -137,9 +146,12 @@ spec:
         - name: runtime-config
           configMap:
             name: {{ template "mimir.fullname" . }}-runtime
-{{- if .Values.alertmanager.extraVolumes }}
-{{ toYaml .Values.alertmanager.extraVolumes | indent 8}}
-{{- end }}
+        {{- if .Values.alertmanager.extraVolumes }}
+        {{ toYaml .Values.alertmanager.extraVolumes | indent 8}}
+        {{- end }}
+        {{- if .Values.global.extraVolumes }}
+        {{ toYaml .Values.global.extraVolumes | indent 8}}
+        {{- end }}
         - name: storage
           emptyDir: {}
         - name: tmp

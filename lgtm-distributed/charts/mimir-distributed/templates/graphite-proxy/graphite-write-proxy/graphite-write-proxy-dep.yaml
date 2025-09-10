@@ -44,17 +44,20 @@ spec:
         {{ toYaml .Values.graphite.write_proxy.extraContainers | nindent 8 }}
         {{- end }}
         - name: graphite-write-proxy
-          image: "{{ include "mimir.imageReference" . }}"
+          image: {{ include "mimir.imageReference" (dict "ctx" . "component" "graphite-write-proxy") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - -target=graphite-write-proxy
             - -config.file=/etc/mimir/mimir.yaml
           {{- range $key, $value := .Values.graphite.write_proxy.extraArgs }}
-            - "-{{ $key }}={{ $value }}"
+            - -{{ $key }}={{ $value }}
           {{- end }}
           volumeMounts:
             {{- if .Values.graphite.write_proxy.extraVolumeMounts }}
               {{ toYaml .Values.graphite.write_proxy.extraVolumeMounts | nindent 12}}
+            {{- end }}
+            {{- if .Values.global.extraVolumeMounts }}
+              {{ toYaml .Values.global.extraVolumeMounts | nindent 12}}
             {{- end }}
             - name: config
               mountPath: /etc/mimir
@@ -64,7 +67,9 @@ spec:
               mountPath: /license
             - name: storage
               mountPath: "/data"
+              {{- if .Values.graphite.write_proxy.persistence.subPath }}
               subPath: {{ .Values.graphite.write_proxy.persistence.subPath }}
+              {{- end }}
             - name: active-queries
               mountPath: /active-query-tracker
           ports:
@@ -82,6 +87,8 @@ spec:
             {{- toYaml .Values.graphite.write_proxy.resources | nindent 12 }}
           securityContext:
             {{- toYaml .Values.graphite.write_proxy.containerSecurityContext | nindent 12 }}
+          {{- $jaeger_queue_size := dig "jaegerReporterMaxQueueSize" nil .Values.graphite.write_proxy }}
+          {{- if or .Values.global.extraEnv .Values.graphite.write_proxy.env $jaeger_queue_size }}
           env:
             {{- with .Values.global.extraEnv }}
               {{ toYaml . | nindent 12 }}
@@ -89,11 +96,12 @@ spec:
             {{- with .Values.graphite.write_proxy.env }}
               {{ toYaml . | nindent 12 }}
             {{- end }}
-            {{- $jaeger_queue_size := dig "jaegerReporterMaxQueueSize" nil .Values.graphite.write_proxy }}
             {{- if $jaeger_queue_size }}
             - name: "JAEGER_REPORTER_MAX_QUEUE_SIZE"
               value: {{$jaeger_queue_size | toString | toYaml }}
             {{- end }}
+          {{- end }}
+          {{- if or .Values.global.extraEnvFrom .Values.graphite.write_proxy.extraEnvFrom }}
           envFrom:
             {{- with .Values.global.extraEnvFrom }}
               {{- toYaml . | nindent 12 }}
@@ -101,6 +109,7 @@ spec:
             {{- with .Values.graphite.write_proxy.extraEnvFrom }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- end }}
       {{- with .Values.graphite.write_proxy.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -125,6 +134,9 @@ spec:
             name: {{ template "mimir.fullname" . }}-graphite-schemas
         {{- if .Values.graphite.write_proxy.extraVolumes }}
         {{ toYaml .Values.graphite.write_proxy.extraVolumes | indent 8}}
+        {{- end }}
+        {{- if .Values.global.extraVolumes }}
+        {{ toYaml .Values.global.extraVolumes | indent 8}}
         {{- end }}
         - name: license
           secret:

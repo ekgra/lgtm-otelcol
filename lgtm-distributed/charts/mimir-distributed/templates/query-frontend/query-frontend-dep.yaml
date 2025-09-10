@@ -1,3 +1,4 @@
+{{- if and .Values.query_frontend.enabled (not .Values.federation_frontend.disableOtherComponents) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -45,7 +46,7 @@ spec:
       {{- end }}
       containers:
         - name: query-frontend
-          image: "{{ include "mimir.imageReference" . }}"
+          image: {{ include "mimir.imageReference" (dict "ctx" . "component" "query-frontend") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - "-target=query-frontend"
@@ -55,11 +56,14 @@ spec:
             - "-server.grpc.keepalive.max-connection-age=30s"
             - "-shutdown-delay=90s"
           {{- range $key, $value := .Values.query_frontend.extraArgs }}
-            - "-{{ $key }}={{ $value }}"
+            - -{{ $key }}={{ $value }}
           {{- end }}
           volumeMounts:
             {{- if .Values.query_frontend.extraVolumeMounts }}
               {{ toYaml .Values.query_frontend.extraVolumeMounts | nindent 12}}
+            {{- end }}
+            {{- if .Values.global.extraVolumeMounts }}
+              {{ toYaml .Values.global.extraVolumeMounts | nindent 12}}
             {{- end }}
             - name: runtime-config
               mountPath: /var/{{ include "mimir.name" . }}
@@ -91,6 +95,8 @@ spec:
             {{- toYaml .Values.query_frontend.resources | nindent 12 }}
           securityContext:
             {{- toYaml .Values.query_frontend.containerSecurityContext | nindent 12 }}
+          {{- $jaeger_queue_size := dig "jaegerReporterMaxQueueSize" nil .Values.query_frontend }}
+          {{- if or .Values.global.extraEnv .Values.query_frontend.env $jaeger_queue_size }}
           env:
             {{- with .Values.global.extraEnv }}
               {{- toYaml . | nindent 12 }}
@@ -98,11 +104,12 @@ spec:
             {{- with .Values.query_frontend.env }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
-            {{- $jaeger_queue_size := dig "jaegerReporterMaxQueueSize" nil .Values.query_frontend }}
             {{- if $jaeger_queue_size }}
             - name: "JAEGER_REPORTER_MAX_QUEUE_SIZE"
               value: {{$jaeger_queue_size | toString | toYaml }}
             {{- end }}
+          {{- end }}
+          {{- if or .Values.global.extraEnvFrom .Values.query_frontend.extraEnvFrom }}
           envFrom:
             {{- with .Values.global.extraEnvFrom }}
               {{- toYaml . | nindent 12 }}
@@ -110,6 +117,7 @@ spec:
             {{- with .Values.query_frontend.extraEnvFrom }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- end }}
 {{- if .Values.query_frontend.extraContainers }}
 {{ toYaml .Values.query_frontend.extraContainers | indent 8}}
 {{- end }}
@@ -138,10 +146,14 @@ spec:
         - name: runtime-config
           configMap:
             name: {{ template "mimir.fullname" . }}-runtime
-{{- if .Values.query_frontend.extraVolumes }}
-{{ toYaml .Values.query_frontend.extraVolumes | indent 8}}
-{{- end }}
+        {{- if .Values.query_frontend.extraVolumes }}
+        {{ toYaml .Values.query_frontend.extraVolumes | nindent 8}}
+        {{- end }}
+        {{- if .Values.global.extraVolumes }}
+        {{ toYaml .Values.global.extraVolumes | nindent 8}}
+        {{- end }}
         - name: storage
           emptyDir: {}
         - name: active-queries
           emptyDir: {}
+{{- end }}

@@ -27,12 +27,12 @@ grafana:
       apiVersion: 1
       # -- Datasources linked to the Grafana instance. Override if you disable any components.
       datasources:
-        # https://grafana.com/docs/grafana/latest/datasources/loki/#provision-the-loki-data-source
-        # - name: Loki
-        #   uid: loki
-        #   type: loki
-        #   url: http://{{ .Release.Name }}-loki-gateway
-        #   isDefault: false
+        # Loki datasource points to Query Frontend (gateway disabled)
+        - name: Loki
+          uid: loki
+          type: loki
+          url: http://{{ .Release.Name }}-loki-query-frontend:3100
+          isDefault: false
         # # https://grafana.com/docs/grafana/latest/datasources/prometheus/#provision-the-data-source
         # - name: Mimir
         #   uid: prom
@@ -56,8 +56,145 @@ grafana:
               datasourceUid: prom
 
 loki:
-  # -- Deploy Loki if enabled. See [upstream readme](https://github.com/grafana/helm-charts/tree/main/charts/loki-distributed#values) for full values reference.
+  # -- Enable Loki (using the 'loki' chart, v6.9.0 / app 3.1.0)
   enabled: false
+  # Use distributed mode to run specific microservices only
+  deploymentMode: Distributed
+  # Pin Loki image to match subchart defaults (used by all core components)
+  image:
+    registry: docker.io
+    repository: grafana/loki
+    tag: "3.1.0"
+  # Reuse shared service account like other components
+  serviceAccount:
+    create: false
+    name: lgtm
+  # Disable the bundled gateway; we will not run it
+  gateway:
+    enabled: false
+  # Reduce replication for small, single-node POC
+  commonConfig:
+    replication_factor: 1
+  # Provide a proper TSDB schema (required in distributed/simple-scalable)
+  schemaConfig:
+    configs:
+      - from: 2024-01-01
+        store: tsdb
+        object_store: s3
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  # Nested config block required by subchart validation and config templating
+  loki:
+    # Disable multi-tenant auth; accept writes without X-Scope-OrgID
+    auth_enabled: false
+    commonConfig:
+      replication_factor: 1
+    schemaConfig:
+      configs:
+        - from: 2024-01-01
+          store: tsdb
+          object_store: s3
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+  # Disable all memcached caches
+  resultsCache:
+    enabled: false
+  chunksCache:
+    enabled: false
+  memcachedExporter:
+    enabled: false
+  # Use embedded MinIO for object storage
+  minio:
+    enabled: true
+    replicas: 1
+    persistence:
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  # Disable optional components we don’t want
+  ruler:
+    enabled: false
+  # TSDB components required for schema above
+  indexGateway:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  compactor:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  # Enable only these components with minimal replicas
+  distributor:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  ingester:
+    replicas: 1
+    zoneAwareReplication:
+      enabled: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  querier:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  queryFrontend:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  # Query scheduler is required for Distributed mode
+  queryScheduler:
+    replicas: 1
+  # Ensure SimpleScalable targets are disabled when in Distributed mode
+  write:
+    replicas: 0
+  read:
+    replicas: 0
+  backend:
+    replicas: 0
+
+  # Disable Loki canary since gateway is disabled and we don't need it
+  lokiCanary:
+    enabled: false
+  # Disable Helm tests in the Loki subchart
+  test:
+    enabled: false
 
 # -- Mimir chart values. Resources are set to a minimum by default.
 mimir:
@@ -121,7 +258,7 @@ mimir:
 
 tempo:
   # -- Deploy Tempo if enabled.  See [upstream readme](https://github.com/grafana/helm-charts/blob/main/charts/tempo-distributed/README.md#values) for full values reference.
-  enabled: true
+  enabled: false
   serviceAccount:
     create: false
     name: lgtm
@@ -203,21 +340,42 @@ otelcol:
   # Minimal config to accept OTLP and export traces to Tempo distributor
   config:
     exporters:
-      otlphttp:
+      otlphttp/tempo:
         endpoint: "http://{{ .Release.Name }}-tempo-distributor:4318"
+        tls:
+          insecure: true
+      # Send logs to Loki via OTLP/HTTP (Loki 3.x)
+      otlphttp/loki:
+        # Base endpoint (no signal path appended)
+        endpoint: "http://{{ .Release.Name }}-loki-distributor:3100"
+        # Loki expects HTTP OTLP at /otlp/v1/logs
+        logs_endpoint: "/otlp/v1/logs"
         tls:
           insecure: true
     service:
       pipelines:
         traces:
           exporters:
-            - otlphttp
+            - otlphttp/tempo
             - debug
+        # Receive OTLP logs (from internal telemetry) and push to Loki
+        logs:
+          receivers:
+            - otlp
+          processors:
+            - batch
+          exporters:
+            - otlphttp/loki
   # Export the Collector's own traces to Tempo via OTLP/HTTP
   internalTelemetryViaOTLP:
-    traces:
+    # traces:
+    #   enabled: true
+    #   endpoint: "http://{{ .Release.Name }}-tempo-distributor:4318"
+    logs:
       enabled: true
-      endpoint: "http://{{ .Release.Name }}-tempo-distributor:4318"
+      # Loop internal logs back to this collector's OTLP receiver
+      # endpoint: "http://${env:MY_POD_IP}:4318"
+      endpoint: "http://{{ .Release.Name }}-loki-distributor:3100/otlp/v1/logs"
   # Give self-telemetry a friendly service name
   extraEnvs:
     - name: OTEL_SERVICE_NAME

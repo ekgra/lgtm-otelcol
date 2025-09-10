@@ -14,6 +14,9 @@ metadata:
   namespace: {{ .Release.Namespace | quote }}
 spec:
   type: {{ .Values.nginx.service.type }}
+  {{- if semverCompare ">= 1.22-0" (include "mimir.kubeVersion" .) }}
+  internalTrafficPolicy: {{ .Values.nginx.service.internalTrafficPolicy }}
+  {{- end }}
   {{- with .Values.nginx.service.clusterIP }}
   clusterIP: {{ . }}
   {{- end }}
@@ -28,6 +31,9 @@ spec:
       nodePort: {{ .Values.nginx.service.nodePort }}
       {{- end }}
       protocol: TCP
+    {{- if .Values.nginx.service.extraPorts }}
+    {{- toYaml .Values.nginx.service.extraPorts | nindent 4 }}
+    {{- end }}
   selector:
     {{- include "mimir.selectorLabels" (dict "ctx" . "component" "nginx") | nindent 4 }}
 {{- end -}}

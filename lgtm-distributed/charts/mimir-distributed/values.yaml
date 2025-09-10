@@ -34,7 +34,7 @@ image:
   # -- Grafana Mimir container image repository. Note: for Grafana Enterprise Metrics use the value 'enterprise.image.repository'
   repository: grafana/mimir
   # -- Grafana Mimir container image tag. Note: for Grafana Enterprise Metrics use the value 'enterprise.image.tag'
-  tag: 2.12.0
+  tag: 2.16.0
   # -- Container pull policy - shared between Grafana Mimir and Grafana Enterprise Metrics
   pullPolicy: IfNotPresent
   # -- Optionally specify an array of imagePullSecrets - shared between Grafana Mimir and Grafana Enterprise Metrics
@@ -50,23 +50,31 @@ global:
   clusterDomain: cluster.local.
 
   # -- Common environment variables to add to all pods directly managed by this chart.
-  # scope: admin-api, alertmanager, compactor, distributor, gateway, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, smoke-test, tokengen
+  # scope: admin-api, alertmanager, compactor, continuous-test, distributor, gateway, graphite-proxy, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, smoke-test, tokengen, federation-frontend
   extraEnv: []
 
   # -- Common source of environment injections to add to all pods directly managed by this chart.
-  # scope: admin-api, alertmanager, compactor, distributor, gateway, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, smoke-test, tokengen
+  # scope: admin-api, alertmanager, compactor, continuous-test, distributor, gateway, graphite-proxy, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, smoke-test, tokengen, federation-frontend
   # For example to inject values from a Secret, use:
   # extraEnvFrom:
   #   - secretRef:
   #       name: mysecret
   extraEnvFrom: []
 
+  # -- Common volumes to add to all pods directly managed by this chart.
+  # scope: admin-api, alertmanager, compactor, continuous-test, distributor, gateway, graphite-proxy, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, smoke-test, tokengen, federation-frontend
+  extraVolumes: []
+
+  # -- Common mount points to add to all pods directly managed by this chart.
+  # scope: admin-api, alertmanager, compactor, continuous-test, distributor, gateway, graphite-proxy, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, smoke-test, tokengen, federation-frontend
+  extraVolumeMounts: []
+
   # -- Pod annotations for all pods directly managed by this chart. Usable for example to associate a version to 'global.extraEnv' and 'global.extraEnvFrom' and trigger a restart of the affected services.
-  # scope: admin-api, alertmanager, compactor, distributor, gateway, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, tokengen
+  # scope: admin-api, alertmanager, compactor, distributor, gateway, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, tokengen, federation-frontend
   podAnnotations: {}
 
   # -- Pod labels for all pods directly managed by this chart.
-  # scope: admin-api, alertmanager, compactor, distributor, gateway, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, tokengen
+  # scope: admin-api, alertmanager, compactor, distributor, gateway, ingester, memcached, nginx, overrides-exporter, querier, query-frontend, query-scheduler, ruler, store-gateway, tokengen, federation-frontend
   podLabels: {}
 
 serviceAccount:
@@ -132,7 +140,7 @@ mimir:
         s3:
           access_key_id: {{ .Values.minio.rootUser }}
           bucket_name: enterprise-metrics-admin
-          endpoint: {{ .Release.Name }}-minio.{{ .Release.Namespace }}.svc:9000
+          endpoint: {{ template "minio.fullname" .Subcharts.minio }}.{{ .Release.Namespace }}.svc:{{ .Values.minio.service.port }}
           insecure: true
           secret_access_key: {{ .Values.minio.rootPassword }}
       {{- end }}
@@ -163,7 +171,7 @@ mimir:
       s3:
         access_key_id: {{ .Values.minio.rootUser }}
         bucket_name: {{ include "mimir.minioBucketPrefix" . }}-ruler
-        endpoint: {{ .Release.Name }}-minio.{{ .Release.Namespace }}.svc:9000
+        endpoint: {{ template "minio.fullname" .Subcharts.minio }}.{{ .Release.Namespace }}.svc:{{ .Values.minio.service.port }}
         insecure: true
         secret_access_key: {{ .Values.minio.rootPassword }}
     {{- end }}
@@ -171,6 +179,9 @@ mimir:
     {{- if .Values.enterprise.enabled }}
     auth:
       type: enterprise
+      admin:
+        pass_access_policy_name: true
+        pass_token_name: true
     {{- end }}
 
     # This configures how the store-gateway synchronizes blocks stored in the bucket. It uses Minio by default for getting started (configured via flags) but this should be changed for production deployments.
@@ -208,7 +219,7 @@ mimir:
       s3:
         access_key_id: {{ .Values.minio.rootUser }}
         bucket_name: {{ include "mimir.minioBucketPrefix" . }}-tsdb
-        endpoint: {{ .Release.Name }}-minio.{{ .Release.Namespace }}.svc:9000
+        endpoint: {{ template "minio.fullname" .Subcharts.minio }}.{{ .Release.Namespace }}.svc:{{ .Values.minio.service.port }}
         insecure: true
         secret_access_key: {{ .Values.minio.rootPassword }}
       {{- end }}
@@ -251,8 +262,11 @@ mimir:
       cache_results: true
       query_sharding_target_series_per_shard: 2500
       {{- end }}
-      {{- if .Values.query_scheduler.enabled }}
+      {{- if and .Values.query_scheduler.enabled (not .Values.federation_frontend.disableOtherComponents) }}
       scheduler_address: {{ template "mimir.fullname" . }}-query-scheduler-headless.{{ .Release.Namespace }}.svc:{{ include "mimir.serverGrpcListenPort" . }}
+      {{- end }}
+      {{- if .Values.enterprise.enabled }}
+      log_query_request_headers: X-Access-Policy-Name,X-Token-Name
       {{- end }}
 
     frontend_worker:
@@ -275,12 +289,18 @@ mimir:
           url: http://{{ template "mimir.fullname" . }}-compactor.{{ .Release.Namespace }}.svc:{{ include "mimir.serverHttpListenPort" . }}
         default:
           url: http://{{ template "mimir.fullname" . }}-admin-api.{{ .Release.Namespace }}.svc:{{ include "mimir.serverHttpListenPort" . }}
+        {{- if and .Values.distributor.enabled (not .Values.federation_frontend.disableOtherComponents) }}
         distributor:
           url: dns:///{{ template "mimir.fullname" . }}-distributor-headless.{{ .Release.Namespace }}.svc.{{ .Values.global.clusterDomain }}:{{ include "mimir.serverGrpcListenPort" . }}
+        {{- end }}
         ingester:
           url: http://{{ template "mimir.fullname" . }}-ingester-headless.{{ .Release.Namespace }}.svc:{{ include "mimir.serverHttpListenPort" . }}
         query_frontend:
+        {{ if .Values.federation_frontend.enabled }}
+          url: http://{{ template "mimir.fullname" . }}-federation-frontend.{{ .Release.Namespace }}.svc:{{ include "mimir.serverHttpListenPort" . }}
+        {{ else }}
           url: http://{{ template "mimir.fullname" . }}-query-frontend.{{ .Release.Namespace }}.svc:{{ include "mimir.serverHttpListenPort" . }}
+        {{ end }}
         ruler:
           url: http://{{ template "mimir.fullname" . }}-ruler.{{ .Release.Namespace }}.svc:{{ include "mimir.serverHttpListenPort" . }}
         store_gateway:
@@ -312,9 +332,11 @@ mimir:
 
     {{- if .Values.enterprise.enabled }}
     instrumentation:
-      enabled: true
+      enabled: {{ and .Values.distributor.enabled (not .Values.federation_frontend.disableOtherComponents) }}
+    {{- if and .Values.distributor.enabled (not .Values.federation_frontend.disableOtherComponents) }}
       distributor_client:
         address: dns:///{{ template "mimir.fullname" . }}-distributor-headless.{{ .Release.Namespace }}.svc.{{ .Values.global.clusterDomain }}:{{ include "mimir.serverGrpcListenPort" . }}
+    {{- end }}
 
     license:
       path: "/license/license.jwt"
@@ -350,13 +372,17 @@ mimir:
       alertmanager_url: dnssrvnoa+http://_http-metrics._tcp.{{ template "mimir.fullname" . }}-alertmanager-headless.{{ .Release.Namespace }}.svc.{{ .Values.global.clusterDomain }}/alertmanager
       enable_api: true
       rule_path: /data
+      {{- if .Values.ruler.remoteEvaluationDedicatedQueryPath }}
+      query_frontend:
+        address: dns:///{{ template "mimir.fullname" . }}-ruler-query-frontend.{{ .Release.Namespace }}.svc:{{ include "mimir.serverGrpcListenPort" .  }}
+      {{- end }}
 
     {{- if or (.Values.minio.enabled) (index .Values "metadata-cache" "enabled") }}
     ruler_storage:
       {{- if .Values.minio.enabled }}
       backend: s3
       s3:
-        endpoint: {{ .Release.Name }}-minio.{{ .Release.Namespace }}.svc:9000
+        endpoint: {{ template "minio.fullname" .Subcharts.minio }}.{{ .Release.Namespace }}.svc:{{ .Values.minio.service.port }}
         bucket_name: {{ include "mimir.minioBucketPrefix" . }}-ruler
         access_key_id: {{ .Values.minio.rootUser }}
         secret_access_key: {{ .Values.minio.rootPassword }}
@@ -371,13 +397,15 @@ mimir:
       {{- end }}
     {{- end }}
 
+    {{- if not .Values.federation_frontend.disableOtherComponents }}
     runtime_config:
       file: /var/{{ include "mimir.name" . }}/runtime.yaml
+    {{- end }}
 
     store_gateway:
       sharding_ring:
         heartbeat_period: 1m
-        heartbeat_timeout: 4m
+        heartbeat_timeout: 10m
         wait_stability_min_duration: 1m
         {{- if .Values.store_gateway.zoneAwareReplication.enabled }}
         kvstore:
@@ -514,7 +542,25 @@ kedaAutoscaling:
   prometheusAddress: ""
   customHeaders: {}
   pollingInterval: 10
+  ignoreNullValues: true
+  unsafeSsl: false
 
+  # If your metrics are stored in a datasource with multiple mimir instances extra labels to filter the data are required to get the right metric.
+  toPromQLLabelSelector: {}
+  #  cluster: "my-cluster-name"
+
+  # --KEDA trigger authentication settings.
+  # ref: https://keda.sh/docs/2.16/scalers/pulsar/#authentication-parameters
+  authentication:
+    enabled: false
+    authModes: ""
+    secretTargetRef: []
+    # - key: username
+    #   name: my-secret-name
+    #   parameter: username
+    # - key: password
+    #   name: my-secret-name
+    #   parameter: password
 alertmanager:
   enabled: true
   # -- Total number of replicas for the alertmanager across all availability zones
@@ -523,12 +569,37 @@ alertmanager:
   #   E.g. if 'replicas' is set to 4 and there are 3 zones, then 4/3=1.33 and after rounding up it means 2 pods per zone are started.
   replicas: 1
 
+  # -- Allows to override the container image of the alertmanager component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir
+    # tag: 2.16.0
+
   statefulSet:
     enabled: true
+
+  # -- Dedicated service account for alertmanager pods.
+  # If not set, the default service account defined at the begining of this file will be used.
+  # This service account can be used even if the default one is not set.
+  serviceAccount:
+    create: false
+    # -- Alertmanager specific service account name. If not set and create is set to true, the default
+    # name will be the default mimir service account's name with the "-alertmanager" suffix.
+    name: ""
+    annotations: {}
+    labels: {}
 
   service:
     annotations: {}
     labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    type: ClusterIP
+    extraPorts: []
+    # - port: 11811
+    #   protocol: TCP
+    #   name: reverse-proxy
+    #   targetPort: 11811
 
   # -- Optionally set the scheduler for pods of the alertmanager
   schedulerName: ""
@@ -572,7 +643,11 @@ alertmanager:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
-
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
   annotations: {}
   persistence:
     # SubPath in emptyDir for persistence, only enabled if alertmanager.statefulSet.enabled is false
@@ -583,6 +658,10 @@ alertmanager:
     # Alertmanager will create/use a Persistent Volume Claim
     # If false, use emptyDir
     enabled: true
+
+    # Alertmanager data Persistent Volume Claim template name
+    #
+    name: storage
 
     # Alertmanager data Persistent Volume Claim annotations
     #
@@ -648,7 +727,7 @@ alertmanager:
   statefulStrategy:
     type: RollingUpdate
 
-  terminationGracePeriodSeconds: 60
+  terminationGracePeriodSeconds: 900
 
   initContainers: []
   # Init containers to be added to the alertmanager pod.
@@ -701,7 +780,7 @@ alertmanager:
   #     - name: zone-a
   #       nodeSelector:
   #         topology.kubernetes.io/zone: us-central1-a
-  #     - name: zone-a
+  #     - name: zone-b
   #       nodeSelector:
   #         topology.kubernetes.io/zone: us-central1-b
   #     - name: zone-c
@@ -765,6 +844,15 @@ alertmanager:
         storageClass: null
 
 distributor:
+  # -- Whether to render the manifests related to the distributor component.
+  enabled: true
+
+  # -- Allows to override the container image of the distributor component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir
+    # tag: 2.16.0
+
   # Setting it to null will produce a deployment without replicas set, allowing you to use autoscaling with the deployment
   replicas: 1
 
@@ -773,11 +861,11 @@ distributor:
   # according to top-level kedaAutoscaling.prometheusAddress (defaulting to metamonitoring remote-write destination).
   # Basic auth and extra HTTP headers from metaMonitoring are ignored, please use customHeaders.
   # The remote URL is used even if metamonitoring is disabled.
-  # See https://github.com/grafana/mimir/issues/7367 for more details on how to migrate to autoscaled resources without disruptions.
+  # For more details about migrating to autoscaling, refer to https://grafana.com/docs/helm-charts/mimir-distributed/latest/configure/configure-autoscaling/#migrate-existing-deployments
   kedaAutoscaling:
     enabled: false
     # -- preserveReplicas gives you the option to migrate from non-autoscaled to autoscaled deployments without losing replicas. When set to true, the replica fields in the component will be left intact.
-    # For futher details see [helm: autoscaling migration procedure](https://github.com/grafana/mimir/issues/7367)
+    # For more details about migrating to autoscaling, refer to https://grafana.com/docs/helm-charts/mimir-distributed/latest/configure/configure-autoscaling/#migrate-existing-deployments
     preserveReplicas: false
     minReplicaCount: 1
     maxReplicaCount: 10
@@ -793,6 +881,10 @@ distributor:
   service:
     annotations: {}
     labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    type: ClusterIP
+    extraPorts: []
 
   resources:
     requests:
@@ -824,6 +916,11 @@ distributor:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
 
   annotations: {}
   persistence:
@@ -867,6 +964,15 @@ distributor:
   jaegerReporterMaxQueueSize: 1000
 
 ingester:
+  # -- Whether to render the manifests related to the ingester component.
+  enabled: true
+
+  # -- Allows to override the container image of the ingester component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir
+    # tag: 2.16.0
+
   # -- Total number of replicas for the ingester across all availability zones
   # If ingester.zoneAwareReplication.enabled=false, this number is taken as is.
   # Otherwise each zone starts `ceil(replicas / number_of_zones)` number of pods.
@@ -879,6 +985,10 @@ ingester:
   service:
     annotations: {}
     labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    type: ClusterIP
+    extraPorts: []
 
   # -- Optionally set the scheduler for pods of the ingester
   schedulerName: ""
@@ -918,6 +1028,11 @@ ingester:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
 
   annotations: {}
 
@@ -925,8 +1040,13 @@ ingester:
     # If true and ingester.statefulSet.enabled is true,
     # Ingester will create/use a Persistent Volume Claim
     # If false, use emptyDir
+    # It is advisable to enable volume persistence in ingester to avoid losing metrics.
     #
     enabled: true
+
+    # Ingester data Persistent Volume Claim template name
+    #
+    name: storage
 
     # Ingester data Persistent Volume Claim annotations
     #
@@ -981,7 +1101,7 @@ ingester:
   statefulStrategy:
     type: RollingUpdate
 
-  terminationGracePeriodSeconds: 240
+  terminationGracePeriodSeconds: 1200
 
   tolerations: []
   initContainers: []
@@ -1008,7 +1128,7 @@ ingester:
   #       nodeSelector:
   #         topology.kubernetes.io/zone: us-central1-a
   #       storageClass: storage-class-us-central1-a
-  #     - name: zone-a
+  #     - name: zone-b
   #       nodeSelector:
   #         topology.kubernetes.io/zone: us-central1-b
   #       storageClass: storage-class-us-central1-b
@@ -1083,6 +1203,13 @@ ingester:
 
 overrides_exporter:
   enabled: true
+
+  # -- Allows to override the container image of the overrides-exporter component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir
+    # tag: 2.16.0
+
   replicas: 1
 
   annotations: {}
@@ -1092,6 +1219,10 @@ overrides_exporter:
   service:
     annotations: {}
     labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    type: ClusterIP
+    extraPorts: []
 
   strategy:
     type: RollingUpdate
@@ -1117,6 +1248,11 @@ overrides_exporter:
     #  maxSkew: 1
     #  topologyKey: kubernetes.io/hostname
     #  whenUnsatisfiable: ScheduleAnyway
+    #  minDomains: 1
+    #  nodeAffinityPolicy: Honor
+    #  nodeTaintsPolicy: Honor
+    #  matchLabelKeys:
+    #    - pod-template-hash
 
   # -- SecurityContext override for overrides-exporter pods
   securityContext: {}
@@ -1149,7 +1285,7 @@ overrides_exporter:
       cpu: 100m
       memory: 128Mi
 
-  terminationGracePeriodSeconds: 60
+  terminationGracePeriodSeconds: 30
 
   tolerations: []
   extraContainers: []
@@ -1164,6 +1300,13 @@ overrides_exporter:
 
 ruler:
   enabled: true
+
+  # -- Allows to override the container image of the ruler component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir
+    # tag: 2.16.0
+
   replicas: 1
 
   # -- [Experimental] Configure autoscaling via KEDA (https://keda.sh). This requires having
@@ -1171,11 +1314,11 @@ ruler:
   # according to top-level kedaAutoscaling.prometheusAddress (defaulting to metamonitoring remote-write destination).
   # Basic auth and extra HTTP headers from metaMonitoring are ignored, please use customHeaders.
   # The remote URL is used even if metamonitoring is disabled.
-  # See https://github.com/grafana/mimir/issues/7367 for more details on how to migrate to autoscaled resources without disruptions.
+  # For more details about migrating to autoscaling, refer to https://grafana.com/docs/helm-charts/mimir-distributed/latest/configure/configure-autoscaling/#migrate-existing-deployments
   kedaAutoscaling:
     enabled: false
     # -- preserveReplicas gives you the option to migrate from non-autoscaled to autoscaled deployments without losing replicas. When set to true, the replica fields in the component will be left intact.
-    # For futher details see [helm: autoscaling migration procedure](https://github.com/grafana/mimir/issues/7367)
+    # For more details about migrating to autoscaling, refer to https://grafana.com/docs/helm-charts/mimir-distributed/latest/configure/configure-autoscaling/#migrate-existing-deployments
     preserveReplicas: false
     minReplicaCount: 1
     maxReplicaCount: 10
@@ -1191,6 +1334,10 @@ ruler:
   service:
     annotations: {}
     labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    type: ClusterIP
+    extraPorts: []
 
   # -- Dedicated service account for ruler pods.
   # If not set, the default service account defined at the begining of this file will be used.
@@ -1231,6 +1378,11 @@ ruler:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
 
   annotations: {}
   persistence:
@@ -1258,7 +1410,7 @@ ruler:
       maxSurge: 50%
       maxUnavailable: 0
 
-  terminationGracePeriodSeconds: 180
+  terminationGracePeriodSeconds: 600
 
   tolerations: []
   initContainers: []
@@ -1272,7 +1424,18 @@ ruler:
   # Set to 'null' to use the Jaeger client's default value
   jaegerReporterMaxQueueSize: 1000
 
-querier:
+  # -- If set to true, a dedicated query path will be deployed for the ruler and operational mode will be set to use remote evaluation. https://grafana.com/docs/mimir/latest/references/architecture/components/ruler/#remote
+  # -- This is useful for isolating the ruler queries from other queriers (api/grafana).
+  remoteEvaluationDedicatedQueryPath: false
+
+# -- Only deployed if .Values.ruler.remoteEvaluationDedicatedQueryPath
+ruler_querier:
+  # -- Allows to override the container image of the ruler-querier component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir
+    # tag: 2.16.0
+
   replicas: 2
 
   # -- [Experimental] Configure autoscaling via KEDA (https://keda.sh). This requires having
@@ -1280,11 +1443,11 @@ querier:
   # according to top-level kedaAutoscaling.prometheusAddress (defaulting to metamonitoring remote-write destination).
   # Basic auth and extra HTTP headers from metaMonitoring are ignored, please use customHeaders.
   # The remote URL is used even if metamonitoring is disabled.
-  # See https://github.com/grafana/mimir/issues/7367 for more details on how to migrate to autoscaled resources without disruptions.
+  # For more details about migrating to autoscaling, refer to https://grafana.com/docs/helm-charts/mimir-distributed/latest/configure/configure-autoscaling/#migrate-existing-deployments
   kedaAutoscaling:
     enabled: false
     # -- preserveReplicas gives you the option to migrate from non-autoscaled to autoscaled deployments without losing replicas. When set to true, the replica fields in the component will be left intact.
-    # For futher details see [helm: autoscaling migration procedure](https://github.com/grafana/mimir/issues/7367)
+    # For more details about migrating to autoscaling, refer to https://grafana.com/docs/helm-charts/mimir-distributed/latest/configure/configure-autoscaling/#migrate-existing-deployments
     preserveReplicas: false
     minReplicaCount: 1
     maxReplicaCount: 10
@@ -1309,6 +1472,359 @@ querier:
   service:
     annotations: {}
     labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    type: ClusterIP
+    extraPorts: []
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  # Additional ruler-querier container arguments, e.g. log level (debug, info, warn, error)
+  extraArgs: {}
+
+  # Pod Labels
+  podLabels: {}
+
+  # Pod Annotations
+  podAnnotations: {}
+
+  # Pod Disruption Budget
+  podDisruptionBudget:
+    maxUnavailable: 1
+
+  # -- The name of the PriorityClass for ruler-querier pods
+  priorityClassName: null
+
+  nodeSelector: {}
+  affinity: {}
+
+  # -- topologySpreadConstraints allows to customize the default topologySpreadConstraints. This can be either a single dict as shown below or a slice of topologySpreadConstraints.
+  # labelSelector is taken from the constraint itself (if it exists) or is generated by the chart using the same selectors as for services.
+  topologySpreadConstraints:
+    maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
+
+  annotations: {}
+  persistence:
+    subPath:
+
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http-metrics
+    initialDelaySeconds: 45
+
+  # -- SecurityContext override for ruler-querier pods
+  securityContext: {}
+
+  # -- The SecurityContext for ruler-querier containers
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 15%
+
+  terminationGracePeriodSeconds: 180
+
+  tolerations: []
+  initContainers: []
+  extraContainers: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  env: []
+  extraEnvFrom: []
+
+  # -- Jaeger reporter queue size
+  # Set to 'null' to use the Jaeger client's default value
+  jaegerReporterMaxQueueSize: 5000
+
+# -- Only deployed if .Values.ruler.remoteEvaluationDedicatedQueryPath
+ruler_query_frontend:
+  # -- Allows to override the container image of the ruler-query-frontend component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir
+    # tag: 2.16.0
+
+  # Setting it to null will produce a deployment without replicas set, allowing you to use autoscaling with the deployment
+  replicas: 1
+
+  # -- [Experimental] Configure autoscaling via KEDA (https://keda.sh). This requires having
+  # KEDA already installed in the Kubernetes cluster. The metrics for scaling are read
+  # according to top-level kedaAutoscaling.prometheusAddress (defaulting to metamonitoring remote-write destination).
+  # Basic auth and extra HTTP headers from metaMonitoring are ignored, please use customHeaders.
+  # The remote URL is used even if metamonitoring is disabled.
+  # For more details about migrating to autoscaling, refer to https://grafana.com/docs/helm-charts/mimir-distributed/latest/configure/configure-autoscaling/#migrate-existing-deployments
+  kedaAutoscaling:
+    enabled: false
+    # -- preserveReplicas gives you the option to migrate from non-autoscaled to autoscaled deployments without losing replicas. When set to true, the replica fields in the component will be left intact.
+    # For more details about migrating to autoscaling, refer to https://grafana.com/docs/helm-charts/mimir-distributed/latest/configure/configure-autoscaling/#migrate-existing-deployments
+    preserveReplicas: false
+    minReplicaCount: 1
+    maxReplicaCount: 10
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: 100
+    behavior:
+      scaleDown:
+        policies:
+          - periodSeconds: 60
+            type: Percent
+            value: 10
+
+  service:
+    annotations: {}
+    labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    type: ClusterIP
+    extraPorts: []
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  # Additional ruler-query-frontend container arguments, e.g. log level (debug, info, warn, error)
+  extraArgs: {}
+
+  # Pod Labels
+  podLabels: {}
+
+  # Pod Annotations
+  podAnnotations: {}
+
+  # Pod Disruption Budget
+  podDisruptionBudget:
+    maxUnavailable: 1
+
+  # -- The name of the PriorityClass for ruler-query-frontend pods
+  priorityClassName: null
+
+  nodeSelector: {}
+  affinity: {}
+
+  # -- topologySpreadConstraints allows to customize the default topologySpreadConstraints. This can be either a single dict as shown below or a slice of topologySpreadConstraints.
+  # labelSelector is taken from the constraint itself (if it exists) or is generated by the chart using the same selectors as for services.
+  topologySpreadConstraints:
+    maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
+
+  annotations: {}
+  persistence:
+    subPath:
+
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http-metrics
+    initialDelaySeconds: 45
+
+  # -- SecurityContext override for query-fronted pods
+  securityContext: {}
+
+  # -- The SecurityContext for ruler-query-frontend containers
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 15%
+
+  terminationGracePeriodSeconds: 390
+
+  tolerations: []
+  initContainers: []
+  extraContainers: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  env: []
+  extraEnvFrom: []
+
+  # -- Jaeger reporter queue size
+  # Set to 'null' to use the Jaeger client's default value
+  jaegerReporterMaxQueueSize: 5000
+
+# -- Only deployed if .Values.ruler.remoteEvaluationDedicatedQueryPath
+ruler_query_scheduler:
+  # -- Allows to override the container image of the ruler-query-scheduler component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir
+    # tag: 2.16.0
+
+  replicas: 2
+
+  service:
+    annotations: {}
+    labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    type: ClusterIP
+    extraPorts: []
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  # Additional ruler-query-scheduler container arguments, e.g. log level (debug, info, warn, error)
+  extraArgs: {}
+
+  # Pod Labels
+  podLabels: {}
+
+  # Pod Annotations
+  podAnnotations: {}
+
+  # Pod Disruption Budget
+  podDisruptionBudget:
+    maxUnavailable: 1
+
+  # -- The name of the PriorityClass for ruler-query-scheduler pods
+  priorityClassName: null
+
+  nodeSelector: {}
+  affinity: {}
+
+  # -- topologySpreadConstraints allows to customize the default topologySpreadConstraints. This can be either a single dict as shown below or a slice of topologySpreadConstraints.
+  # labelSelector is taken from the constraint itself (if it exists) or is generated by the chart using the same selectors as for services.
+  topologySpreadConstraints:
+    maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
+
+  annotations: {}
+  persistence:
+    subPath:
+
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http-metrics
+    initialDelaySeconds: 45
+
+  # -- SecurityContext override for ruler-query-scheduler pods
+  securityContext: {}
+
+  # -- The SecurityContext for ruler-query-scheduler containers
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+  terminationGracePeriodSeconds: 180
+
+  tolerations: []
+  initContainers: []
+  extraContainers: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  env: []
+  extraEnvFrom: []
+
+  # -- Jaeger reporter queue size
+  # Set to 'null' to use the Jaeger client's default value
+  jaegerReporterMaxQueueSize: null
+
+querier:
+  # -- Whether to render the manifests related to the querier component.
+  enabled: true
+
+  # -- Allows to override the container image of the querier component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir
+    # tag: 2.16.0
+
+  replicas: 2
+
+  # -- [Experimental] Configure autoscaling via KEDA (https://keda.sh). This requires having
+  # KEDA already installed in the Kubernetes cluster. The metrics for scaling are read
+  # according to top-level kedaAutoscaling.prometheusAddress (defaulting to metamonitoring remote-write destination).
+  # Basic auth and extra HTTP headers from metaMonitoring are ignored, please use customHeaders.
+  # The remote URL is used even if metamonitoring is disabled.
+  # For more details about migrating to autoscaling, refer to https://grafana.com/docs/helm-charts/mimir-distributed/latest/configure/configure-autoscaling/#migrate-existing-deployments
+  kedaAutoscaling:
+    enabled: false
+    # -- preserveReplicas gives you the option to migrate from non-autoscaled to autoscaled deployments without losing replicas. When set to true, the replica fields in the component will be left intact.
+    # For more details about migrating to autoscaling, refer to https://grafana.com/docs/helm-charts/mimir-distributed/latest/configure/configure-autoscaling/#migrate-existing-deployments
+    preserveReplicas: false
+    minReplicaCount: 1
+    maxReplicaCount: 10
+    querySchedulerInflightRequestsThreshold: 12
+    # -- predictiveScalingEnabled scales up the querier based on the inflight requests in the past.
+    # This helps with scaling up for predictable traffic patterns and minimizing HTTP 429 responses due to filled query queues.
+    # Due to false positive items it can increase the querier TCO.
+    predictiveScalingEnabled: false
+    # -- The period to consider when considering scheduler metrics for predictive scaling.
+    # This is usually slightly lower than the period of the repeating query events to give scaling up lead time.
+    predictiveScalingPeriod: 6d23h30m
+    # -- The time range to consider when considering scheduler metrics for predictive scaling.
+    # For example: if lookback is 30m and period is 6d23h30m,
+    # the querier will scale based on the maximum inflight queries between 6d23h30m and 7d ago.
+    predictiveScalingLookback: 30m
+    behavior:
+      scaleDown:
+        policies:
+          - periodSeconds: 120
+            type: Percent
+            value: 10
+        stabilizationWindowSeconds: 600
+      scaleUp:
+        policies:
+          - periodSeconds: 120
+            type: Percent
+            value: 50
+          - periodSeconds: 120
+            type: Pods
+            value: 15
+        stabilizationWindowSeconds: 60
+
+  service:
+    annotations: {}
+    labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    type: ClusterIP
+    extraPorts: []
 
   resources:
     requests:
@@ -1340,6 +1856,11 @@ querier:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
 
   annotations: {}
   persistence:
@@ -1382,6 +1903,15 @@ querier:
   jaegerReporterMaxQueueSize: 5000
 
 query_frontend:
+  # -- Whether to render the manifests related to the query-frontend component.
+  enabled: true
+
+  # -- Allows to override the container image of the query-frontend component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir
+    # tag: 2.16.0
+
   # Setting it to null will produce a deployment without replicas set, allowing you to use autoscaling with the deployment
   replicas: 1
 
@@ -1390,11 +1920,11 @@ query_frontend:
   # according to top-level kedaAutoscaling.prometheusAddress (defaulting to metamonitoring remote-write destination).
   # Basic auth and extra HTTP headers from metaMonitoring are ignored, please use customHeaders.
   # The remote URL is used even if metamonitoring is disabled.
-  # See https://github.com/grafana/mimir/issues/7367 for more details on how to migrate to autoscaled resources without disruptions.
+  # For more details about migrating to autoscaling, refer to https://grafana.com/docs/helm-charts/mimir-distributed/latest/configure/configure-autoscaling/#migrate-existing-deployments
   kedaAutoscaling:
     enabled: false
     # -- preserveReplicas gives you the option to migrate from non-autoscaled to autoscaled deployments without losing replicas. When set to true, the replica fields in the component will be left intact.
-    # For futher details see [helm: autoscaling migration procedure](https://github.com/grafana/mimir/issues/7367)
+    # For more details about migrating to autoscaling, refer to https://grafana.com/docs/helm-charts/mimir-distributed/latest/configure/configure-autoscaling/#migrate-existing-deployments
     preserveReplicas: false
     minReplicaCount: 1
     maxReplicaCount: 10
@@ -1410,6 +1940,10 @@ query_frontend:
   service:
     annotations: {}
     labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    type: ClusterIP
+    extraPorts: []
 
   resources:
     requests:
@@ -1441,6 +1975,11 @@ query_frontend:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
 
   annotations: {}
   persistence:
@@ -1484,11 +2023,22 @@ query_frontend:
 
 query_scheduler:
   enabled: true
+
+  # -- Allows to override the container image of the query-scheduler component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir
+    # tag: 2.16.0
+
   replicas: 2
 
   service:
     annotations: {}
     labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    type: ClusterIP
+    extraPorts: []
 
   resources:
     requests:
@@ -1520,6 +2070,11 @@ query_scheduler:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
 
   annotations: {}
   persistence:
@@ -1562,6 +2117,15 @@ query_scheduler:
   jaegerReporterMaxQueueSize: null
 
 store_gateway:
+  # -- Whether to render the manifests related to the store-gateway component.
+  enabled: true
+
+  # -- Allows to override the container image of the store-gateway component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir
+    # tag: 2.16.0
+
   # -- Total number of replicas for the store-gateway across all availability zones
   # If store_gateway.zoneAwareReplication.enabled=false, this number is taken as is.
   # Otherwise each zone starts `ceil(replicas / number_of_zones)` number of pods.
@@ -1571,6 +2135,10 @@ store_gateway:
   service:
     annotations: {}
     labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    type: ClusterIP
+    extraPorts: []
 
   # -- Optionally set the scheduler for pods of the store-gateway
   schedulerName: ""
@@ -1614,6 +2182,11 @@ store_gateway:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
 
   annotations: {}
 
@@ -1622,6 +2195,10 @@ store_gateway:
     # If false, use emptyDir
     #
     enabled: true
+
+    # Store-gateway data Persistent Volume Claim template name
+    #
+    name: storage
 
     # Store-gateway data Persistent Volume Claim annotations
     #
@@ -1678,7 +2255,7 @@ store_gateway:
   strategy:
     type: RollingUpdate
 
-  terminationGracePeriodSeconds: 240
+  terminationGracePeriodSeconds: 120
 
   tolerations: []
   initContainers: []
@@ -1704,7 +2281,7 @@ store_gateway:
   #     - name: zone-a
   #       nodeSelector:
   #         topology.kubernetes.io/zone: us-central1-a
-  #     - name: zone-a
+  #     - name: zone-b
   #       nodeSelector:
   #         topology.kubernetes.io/zone: us-central1-b
   #     - name: zone-c
@@ -1768,11 +2345,24 @@ store_gateway:
         storageClass: null
 
 compactor:
+  # -- Whether to render the manifests related to the compactor component.
+  enabled: true
+
+  # -- Allows to override the container image of the compactor component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir
+    # tag: 2.16.0
+
   replicas: 1
 
   service:
     annotations: {}
     labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    type: ClusterIP
+    extraPorts: []
 
   # -- Optionally set the scheduler for pods of the compactor
   schedulerName: ""
@@ -1809,6 +2399,11 @@ compactor:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
 
   annotations: {}
 
@@ -1817,6 +2412,10 @@ compactor:
     # If false, use emptyDir
     #
     enabled: true
+
+    # compactor data Persistent Volume Claim template name
+    #
+    name: storage
 
     # compactor data Persistent Volume Claim annotations
     #
@@ -1871,7 +2470,7 @@ compactor:
   strategy:
     type: RollingUpdate
 
-  terminationGracePeriodSeconds: 240
+  terminationGracePeriodSeconds: 900
 
   tolerations: []
   initContainers: []
@@ -1890,7 +2489,7 @@ memcached:
     # -- Memcached Docker image repository
     repository: memcached
     # -- Memcached Docker image tag
-    tag: 1.6.25-alpine
+    tag: 1.6.37-alpine
     # -- Memcached Docker image pull policy
     pullPolicy: IfNotPresent
 
@@ -1913,7 +2512,7 @@ memcachedExporter:
 
   image:
     repository: prom/memcached-exporter
-    tag: v0.14.3
+    tag: v0.15.1
     pullPolicy: IfNotPresent
 
   resources:
@@ -1973,6 +2572,11 @@ chunks-cache:
   #  maxSkew: 1
   #  topologyKey: kubernetes.io/hostname
   #  whenUnsatisfiable: ScheduleAnyway
+  #  minDomains: 1
+  #  nodeAffinityPolicy: Honor
+  #  nodeTaintsPolicy: Honor
+  #  matchLabelKeys:
+  #    - pod-template-hash
 
   # -- Tolerations for chunks-cache pods
   tolerations: []
@@ -1988,7 +2592,7 @@ chunks-cache:
   # -- Management policy for chunks-cache pods
   podManagementPolicy: Parallel
   # -- Grace period to allow the chunks-cache to shutdown before it is killed
-  terminationGracePeriodSeconds: 60
+  terminationGracePeriodSeconds: 30
 
   # -- Stateful chunks-cache strategy
   statefulStrategy:
@@ -2021,6 +2625,9 @@ chunks-cache:
   #   readOnly: true
   extraVolumeMounts: []
 
+  # -- List of additional PVCs to be created for the chunks-cache statefulset
+  volumeClaimTemplates: []
+
   # -- Resource requests and limits for the chunks-cache
   # By default a safe memory limit will be requested based on allocatedMemory value (floor (* 1.2 allocatedMemory)).
   resources: null
@@ -2029,6 +2636,7 @@ chunks-cache:
   service:
     annotations: {}
     labels: {}
+    extraPorts: []
 
 index-cache:
   # -- Specifies whether memcached based index-cache should be enabled
@@ -2065,6 +2673,11 @@ index-cache:
   #  maxSkew: 1
   #  topologyKey: kubernetes.io/hostname
   #  whenUnsatisfiable: ScheduleAnyway
+  #  minDomains: 1
+  #  nodeAffinityPolicy: Honor
+  #  nodeTaintsPolicy: Honor
+  #  matchLabelKeys:
+  #    - pod-template-hash
 
   # -- Tolerations for index-cache pods
   tolerations: []
@@ -2080,7 +2693,7 @@ index-cache:
   # -- Management policy for index-cache pods
   podManagementPolicy: Parallel
   # -- Grace period to allow the index-cache to shutdown before it is killed
-  terminationGracePeriodSeconds: 60
+  terminationGracePeriodSeconds: 30
 
   # -- Stateful index-cache strategy
   statefulStrategy:
@@ -2113,6 +2726,9 @@ index-cache:
   #   readOnly: true
   extraVolumeMounts: []
 
+  # -- List of additional PVCs to be created for the index-cache statefulset
+  volumeClaimTemplates: []
+
   # -- Resource requests and limits for the index-cache
   # By default a safe memory limit will be requested based on allocatedMemory value (floor (* 1.2 allocatedMemory)).
   resources: null
@@ -2121,6 +2737,7 @@ index-cache:
   service:
     annotations: {}
     labels: {}
+    extraPorts: []
 
 metadata-cache:
   # -- Specifies whether memcached based metadata-cache should be enabled
@@ -2157,6 +2774,11 @@ metadata-cache:
   #  maxSkew: 1
   #  topologyKey: kubernetes.io/hostname
   #  whenUnsatisfiable: ScheduleAnyway
+  #  minDomains: 1
+  #  nodeAffinityPolicy: Honor
+  #  nodeTaintsPolicy: Honor
+  #  matchLabelKeys:
+  #    - pod-template-hash
 
   # -- Tolerations for metadata-cache pods
   tolerations: []
@@ -2172,7 +2794,7 @@ metadata-cache:
   # -- Management policy for metadata-cache pods
   podManagementPolicy: Parallel
   # -- Grace period to allow the metadata-cache to shutdown before it is killed
-  terminationGracePeriodSeconds: 60
+  terminationGracePeriodSeconds: 30
 
   # -- Stateful metadata-cache strategy
   statefulStrategy:
@@ -2205,6 +2827,9 @@ metadata-cache:
   #   readOnly: true
   extraVolumeMounts: []
 
+  # -- List of additional PVCs to be created for the metadata-cache statefulset
+  volumeClaimTemplates: []
+
   # -- Resource requests and limits for the metadata-cache
   # By default a safe memory limit will be requested based on allocatedMemory value (floor (* 1.2 allocatedMemory)).
   resources: null
@@ -2213,6 +2838,7 @@ metadata-cache:
   service:
     annotations: {}
     labels: {}
+    extraPorts: []
 
 results-cache:
   # -- Specifies whether memcached based results-cache should be enabled
@@ -2249,6 +2875,11 @@ results-cache:
   #  maxSkew: 1
   #  topologyKey: kubernetes.io/hostname
   #  whenUnsatisfiable: ScheduleAnyway
+  #  minDomains: 1
+  #  nodeAffinityPolicy: Honor
+  #  nodeTaintsPolicy: Honor
+  #  matchLabelKeys:
+  #    - pod-template-hash
 
   # -- Tolerations for results-cache pods
   tolerations: []
@@ -2264,7 +2895,7 @@ results-cache:
   # -- Management policy for results-cache pods
   podManagementPolicy: Parallel
   # -- Grace period to allow the results-cache to shutdown before it is killed
-  terminationGracePeriodSeconds: 60
+  terminationGracePeriodSeconds: 30
 
   # -- Stateful results-cache strategy
   statefulStrategy:
@@ -2297,6 +2928,9 @@ results-cache:
   #   readOnly: true
   extraVolumeMounts: []
 
+  # -- List of additional PVCs to be created for the results-cache statefulset
+  volumeClaimTemplates: []
+
   # -- Resource requests and limits for the results-cache
   # By default a safe memory limit will be requested based on allocatedMemory value (floor (* 1.2 allocatedMemory)).
   resources: null
@@ -2305,6 +2939,7 @@ results-cache:
   service:
     annotations: {}
     labels: {}
+    extraPorts: []
 
 # -- Setting for the Grafana Rollout Operator https://github.com/grafana/helm-charts/tree/main/charts/rollout-operator
 rollout_operator:
@@ -2399,7 +3034,7 @@ nginx:
     # -- The nginx image repository
     repository: nginxinc/nginx-unprivileged
     # -- The nginx image tag
-    tag: 1.25-alpine
+    tag: 1.27-alpine
     # -- The nginx image pull policy
     pullPolicy: IfNotPresent
   # -- The name of the PriorityClass for nginx pods
@@ -2444,6 +3079,11 @@ nginx:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
 
   annotations: {}
 
@@ -2467,6 +3107,9 @@ nginx:
     annotations: {}
     # -- Labels for nginx service
     labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    extraPorts: []
   # Ingress configuration
   ingress:
     # -- Specifies whether an ingress for the nginx should be created
@@ -2653,6 +3296,10 @@ nginx:
             set $alertmanager {{ template "mimir.fullname" . }}-alertmanager-headless.{{ .Release.Namespace }}.svc.{{ .Values.global.clusterDomain }};
             proxy_pass      http://$alertmanager:{{ include "mimir.serverHttpListenPort" . }}$request_uri;
           }
+          location = /multitenant_alertmanager/configs {
+            set $alertmanager {{ template "mimir.fullname" . }}-alertmanager-headless.{{ .Release.Namespace }}.svc.{{ .Values.global.clusterDomain }};
+            proxy_pass      http://$alertmanager:{{ include "mimir.serverHttpListenPort" . }}$request_uri;
+          }
           location = /api/v1/alerts {
             set $alertmanager {{ template "mimir.fullname" . }}-alertmanager-headless.{{ .Release.Namespace }}.svc.{{ .Values.global.clusterDomain }};
             proxy_pass      http://$alertmanager:{{ include "mimir.serverHttpListenPort" . }}$request_uri;
@@ -2717,6 +3364,7 @@ ingress:
     alertmanager-headless:
       - path: /alertmanager
       - path: /multitenant_alertmanager/status
+      - path: /multitenant_alertmanager/configs
       - path: /api/v1/alerts
     ruler:
       - path: /prometheus/config/v1/rules
@@ -2738,9 +3386,21 @@ ingress:
 # When enterprise.enabled is true the GEM gateway is deployed. Otherwise, it is an nginx.
 # Options except those under gateway.nginx apply to both versions - nginx and GEM gateway.
 gateway:
+  # -- Whether to render the manifests related to the gateway component.
+  # This controls the behaviour both when enterprise.enabled=true and when enterprise.enabled=false.
+  enabled: true
+
   # -- The gateway is deployed by default for enterprise installations (enterprise.enabled=true).
   # Toggle this to have it deployed for non-enterprise installations too.
+  # The value of this field is ignored when gateway.enabled=false.
   enabledNonEnterprise: false
+
+  # -- Allows to override the container image of the gateway component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  # Only applies to the GEM gateway. Use gateway.nginx.image for the nginx gateway.
+  image:
+    # repository: grafana/mimir-enterprise
+    # tag: 2.16.0
 
   # -- Number of replicas for the Deployment
   replicas: 1
@@ -2820,6 +3480,11 @@ gateway:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
 
   # Annotations for the Deployment
   annotations: {}
@@ -2852,6 +3517,9 @@ gateway:
     # Instead, it will update the existing one in place.
     # If left as an empty string, a name is generated.
     nameOverride: ""
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    extraPorts: []
 
   ingress:
     enabled: false
@@ -2911,7 +3579,7 @@ gateway:
       # -- The nginx image repository
       repository: nginxinc/nginx-unprivileged
       # -- The nginx image tag
-      tag: 1.25-alpine
+      tag: 1.27-alpine
 
     # -- Basic auth configuration
     basicAuth:
@@ -2943,6 +3611,8 @@ gateway:
       serverSnippet: ""
       # -- Allows appending custom configuration to the http block
       httpSnippet: ""
+      # -- Allow to set client_max_body_size in the nginx configuration
+      clientMaxBodySize: 540M
       # -- Allows to set a custom resolver
       resolver: null
       # -- Configures whether or not NGINX bind IPv6
@@ -3011,6 +3681,10 @@ gateway:
             listen [::]:{{ include "mimir.serverHttpListenPort" . }};
             {{- end }}
 
+            {{- if .Values.gateway.nginx.config.clientMaxBodySize }}
+            client_max_body_size {{ .Values.gateway.nginx.config.clientMaxBodySize }};
+            {{- end }}
+
             {{- if .Values.gateway.nginx.basicAuth.enabled }}
             auth_basic           "Mimir";
             auth_basic_user_file /etc/nginx/secrets/.htpasswd;
@@ -3052,6 +3726,10 @@ gateway:
               proxy_pass      http://$alertmanager:{{ include "mimir.serverHttpListenPort" . }}$request_uri;
             }
             location = /multitenant_alertmanager/status {
+              set $alertmanager {{ template "mimir.fullname" . }}-alertmanager-headless.{{ .Release.Namespace }}.svc.{{ .Values.global.clusterDomain }};
+              proxy_pass      http://$alertmanager:{{ include "mimir.serverHttpListenPort" . }}$request_uri;
+            }
+            location = /multitenant_alertmanager/configs {
               set $alertmanager {{ template "mimir.fullname" . }}-alertmanager-headless.{{ .Release.Namespace }}.svc.{{ .Values.global.clusterDomain }};
               proxy_pass      http://$alertmanager:{{ include "mimir.serverHttpListenPort" . }}$request_uri;
             }
@@ -3108,6 +3786,8 @@ metaMonitoring:
   dashboards:
     # -- If enabled, Grafana dashboards are deployed
     enabled: false
+    # -- Alternative namespace to create dashboards ConfigMaps in. They are created in the Helm release namespace by default.
+    namespace: null
     # -- Annotations to add to the Grafana dashboard ConfigMap
     annotations:
       k8s-sidecar-target-directory: /tmp/dashboards/Mimir Dashboards
@@ -3204,6 +3884,22 @@ metaMonitoring:
     #    image: grafana/agent
     #    tag: v0.29.0
 
+    # -- Resource requests and limits for the grafana-agent and config-reloader containers in the meta-monitoring
+    # StatefulSet and DaemonSet created by the grafana-agent-operator. You can define one or both sections under resources.
+    resources:
+    #   configReloader:
+    #     requests:
+    #       cpu: 5m
+    #       memory: 10Mi
+    #     limits:
+    #       memory: 50Mi
+    #   grafanaAgent:
+    #     requests:
+    #       cpu: 20m
+    #       memory: 700Mi
+    #     limits:
+    #       memory: 1400Mi
+
     # -- Controls whether to install the Grafana Agent Operator and its CRDs.
     # Note that helm will not install CRDs if this flag is enabled during an upgrade.
     # In that case install the CRDs manually from https://github.com/grafana/agent/tree/main/operations/agent-static-operator/crds
@@ -3212,6 +3908,11 @@ metaMonitoring:
     logs:
       # -- Controls whether to create resources PodLogs and LogsInstance resources
       enabled: true
+
+      # -- To disable setting a 'cluster' label in logs, set to 'null'.
+      # To overwrite the 'cluster' label with your own value, set to a non-empty string.
+      # Keep empty string "" to have the default value in the 'cluster' label, which is the helm release name for Mimir and the actual cluster name for Enterprise Metrics.
+      clusterLabel: ""
 
       # -- Default destination for logs. The config here is translated to Promtail client
       # configuration to write logs to this Loki-compatible remote. Optional.
@@ -3282,6 +3983,15 @@ metaMonitoring:
           # -- The value under this key in passwordSecretName will be used as the basic authentication password. Required only if passwordSecretName is set.
           passwordSecretKey: ""
 
+        # -- Configuration for SigV4 authentication.
+        # sigv4:
+        #   accessKey: abcd
+        #   profile: default
+        #   region: us-east-1
+        #   roleARN: arn:aws:iam::1234:role/1234
+        #   secretKey: abcd
+        sigv4: {}
+
       # -- Additional remote-write for the MetricsInstance that will scrape Mimir pods. Follows the format of .remote.
       additionalRemoteWriteConfigs: []
 
@@ -3335,6 +4045,23 @@ metaMonitoring:
     #  capabilities:
     #    drop: [ALL]
 
+    # -- Node selector for Deployment Pods
+    nodeSelector: {}
+    # -- Tolerations for Deployment Pods
+    tolerations: []
+
+    # -- topologySpreadConstraints allows to customize the default topologySpreadConstraints.
+    # More info: https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/#topologyspreadconstraints-field
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        # minDomains: 1
+        # nodeAffinityPolicy: Honor
+        # nodeTaintsPolicy: Honor
+        # matchLabelKeys:
+        #   - pod-template-hash
+
 # -- Values exposed by the [Grafana agent-operator chart](https://github.com/grafana/helm-charts/blob/main/charts/agent-operator/values.yaml)
 grafana-agent-operator:
   podSecurityContext:
@@ -3367,7 +4094,7 @@ enterprise:
     # -- Grafana Enterprise Metrics container image repository. Note: for Grafana Mimir use the value 'image.repository'
     repository: grafana/enterprise-metrics
     # -- Grafana Enterprise Metrics container image tag. Note: for Grafana Mimir use the value 'image.tag'
-    tag: v2.12.0
+    tag: v2.16.0
     # Note: pullPolicy and optional pullSecrets are set in toplevel 'image' section, not here
 
 # In order to use Grafana Enterprise Metrics features, you will need to provide the contents of your Grafana Enterprise Metrics
@@ -3388,6 +4115,10 @@ tokengenJob:
   extraEnvFrom: []
   annotations: {}
   initContainers: []
+  # -- Controls whether to store the generated admin token in a Kubernetes secret
+  storeTokenInSecret: false
+  # -- Name of the secret to store the admin token.
+  adminTokenSecret: "admin-token"
 
   # -- SecurityContext override for tokengenjob pods
   securityContext: {}
@@ -3402,15 +4133,93 @@ tokengenJob:
   # -- The name of the PriorityClass for tokenjobgen pods
   priorityClassName: null
 
+# -- kubetclImage is used in the enterprise provisioner and tokengen jobs
+kubectlImage:
+  # -- The Docker registry for the kubectl image
+  registry: docker.io
+  # -- The kubectl image repository
+  repository: bitnami/kubectl
+  # -- The kubectl image tag
+  tag: latest
+  # -- The kubectl image pull policy
+  pullPolicy: IfNotPresent
+
+# Settings for the provisioner job. Can only be enabled if enterprise.enabled is true - requires license.
+# The provisioner job creates tenants, read and write access policies and associated tokens based on configuration
+# provided in the additionalTenants section and creates secrets to store the provisioned tokens.
+# It does not affect any existing tenants, access policies and tokens.
+# Note: Uses tokengenJob.adminTokenSecret value to mount the admin token used to call the admin api.
+provisioner:
+  # -- Whether the job should be part of the deployment
+  enabled: false
+  # -- Name of the secret to store provisioned tokens in
+  provisionedSecretPrefix: '{{ template "mimir.fullname" . }}'
+  # -- Hook type(s) to customize when the job runs.  defaults to post-install
+  hookType: "post-install,post-upgrade"
+  # -- URL for the admin API service.
+  apiUrl: 'http://{{ template "mimir.fullname" . }}-admin-api.{{ .Release.Namespace }}.svc:{{ include "mimir.serverHttpListenPort" . }}'
+  # -- Additional tenants to be created. Each tenant will get a read and write policy
+  # and associated token. Tenant must have a name and a namespace for the secret containing
+  # the token to be created in. For example:
+  # additionalTenants:
+  #   - name: mimir
+  #     secretNamespace: grafana
+  additionalTenants: []
+  # -- Additional Kubernetes environment
+  env: []
+  # -- Additional labels for the `provisioner` Job
+  labels: {}
+  # -- Additional annotations for the `provisioner` Job
+  annotations: {}
+  # -- Affinity for tokengen Pods
+  affinity: {}
+  # -- Node selector for tokengen Pods
+  nodeSelector: {}
+  # -- Tolerations for tokengen Pods
+  tolerations: []
+  # -- The name of the PriorityClass for provisioner Job
+  priorityClassName: null
+  # -- Run containers as nonroot user (uid=10001)`
+  securityContext:
+    runAsNonRoot: true
+    runAsGroup: 10001
+    runAsUser: 10001
+    fsGroup: 10001
+  # -- Provisioner image to Utilize
+  image:
+    # -- The Docker registry
+    registry: us-docker.pkg.dev
+    # -- Docker image repository
+    repository: grafanalabs-global/docker-enterprise-provisioner-prod/enterprise-provisioner
+    # -- Overrides the image tag whose default is the chart's appVersion
+    tag: latest
+    # -- Docker image pull policy
+    pullPolicy: IfNotPresent
+  # -- Volume mounts to add to the provisioner pods
+  extraVolumeMounts: []
+
 # Settings for the admin_api service providing authentication and authorization service.
 # Can only be enabled if enterprise.enabled is true - requires license.
 admin_api:
+  # -- Whether to render the manifests related to the admin-api component.
+  enabled: true
+
+  # -- Allows to override the container image of the admin-api component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/enterprise-metrics
+    # tag: 2.16.0
+
   replicas: 1
 
   annotations: {}
   service:
     annotations: {}
     labels: {}
+    # -- https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
+    internalTrafficPolicy: Cluster
+    type: ClusterIP
+    extraPorts: []
 
   initContainers: []
 
@@ -3432,6 +4241,11 @@ admin_api:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+    # minDomains: 1
+    # nodeAffinityPolicy: Honor
+    # nodeTaintsPolicy: Honor
+    # matchLabelKeys:
+    #   - pod-template-hash
 
   # Pod Disruption Budget
   podDisruptionBudget:
@@ -3517,6 +4331,11 @@ admin-cache:
   #  maxSkew: 1
   #  topologyKey: kubernetes.io/hostname
   #  whenUnsatisfiable: ScheduleAnyway
+  #  minDomains: 1
+  #  nodeAffinityPolicy: Honor
+  #  nodeTaintsPolicy: Honor
+  #  matchLabelKeys:
+  #    - pod-template-hash
 
   # -- Tolerations for admin-cache pods
   tolerations: []
@@ -3552,6 +4371,7 @@ admin-cache:
   service:
     annotations: {}
     labels: {}
+    extraPorts: []
 
 graphite:
   # -- If true, enables graphite querier and graphite write proxy functionality.
@@ -3567,7 +4387,7 @@ graphite:
         [default]
         pattern = .*
         intervals = 0:1s
-        retentions = 10s:8d,10min:1y
+        retentions = 10s:8d,10m:1y
       storageAggregations: |-
         [default]
         aggregationMethod = avg
@@ -3577,6 +4397,7 @@ graphite:
     service:
       annotations: {}
       labels: {}
+      extraPorts: []
 
     # -- Resources for graphite-querier pods
     resources:
@@ -3658,6 +4479,7 @@ graphite:
     service:
       annotations: {}
       labels: {}
+      extraPorts: []
 
     # -- Resources for graphite-write-proxy pods
     resources:
@@ -3798,6 +4620,7 @@ gr-aggr-cache:
   service:
     annotations: {}
     labels: {}
+    extraPorts: []
 
 # Graphite's metric name cache. If you want to know more about it please check
 # https://grafana.com/docs/enterprise-metrics/latest/graphite/graphite_querier/#metric-name-cache
@@ -3863,22 +4686,129 @@ gr-metricname-cache:
   service:
     annotations: {}
     labels: {}
+    extraPorts: []
+
+federation_frontend:
+  # -- Specifies whether the federation-frontend should be enabled
+  enabled: false
+
+  # -- Allows to override the container image of the federation-frontend component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir
+    # tag: 2.16.0
+
+  # -- Specifies whether other components should be deployed. This is an easy way to deploy the resources necessary for a standalone
+  # federation-frontend without the rest of the GEM components.
+  disableOtherComponents: false
+
+  # -- Number of replicas for the federation-frontend
+  replicas: 2
+  # -- Deployment strategy for the federation-frontend pods
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 15%
+
+  # -- Resource requests and limits for the federation-frontend
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  initContainers: []
+
+  # -- Additional CLI arguments for the federation-frontend container
+  extraArgs: {}
+
+  # -- Additional environment variables for the federation-frontend container
+  env: []
+
+  # -- Extra environment from secret/configmap for continuous test containers
+  # For example to inject values from a Secret, use:
+  # extraEnvFrom:
+  #   - secretRef:
+  #       name: mysecret
+  extraEnvFrom: []
+
+  # -- Additional volume mounts for the federation-frontend container
+  extraVolumeMounts: []
+  # -- Additional volumes for the federation-frontend pods
+  extraVolumes: []
+
+  # -- Additional containers to be added to the federation-frontend pod.
+  extraContainers: []
+
+  # -- The name of the PriorityClass for federation-frontend pods
+  priorityClassName: null
+  # -- SecurityContext override for federation-frontend pods
+  securityContext: {}
+
+  # -- The SecurityContext for federation-frontend containers
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+
+  # -- Grace period to allow the federation-frontend to shutdown before it is killed
+  terminationGracePeriodSeconds: 180
+  # -- Affinity configuration for federation-frontend pods
+  affinity: {}
+  # -- Node selector configuration for federation-frontend pods
+  nodeSelector: {}
+  # -- Tolerations for federation-frontend pods
+  tolerations: []
+  # -- Additional pod labels
+  podLabels: {}
+  # -- Additional pod annotations
+  podAnnotations: {}
+  # -- Additional annotations for the Deployment
+  annotations: {}
+  # -- Readiness probe configuration
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http-metrics
+    initialDelaySeconds: 45
+  # -- Service configuration
+  service:
+    # -- Additional annotations for the federation-frontend service
+    annotations: {}
+    # -- Additional labels for the federation-frontend service
+    labels: {}
+    extraPorts: []
+
+  # -- Pod Disruption Budget configuration
+  podDisruptionBudget:
+    maxUnavailable: 1
+
+  # -- Jaeger reporter queue size
+  # Set to 'null' to use the Jaeger client's default value
+  jaegerReporterMaxQueueSize: null
 
 # -- Settings for the smoke-test job. This is meant to run as a Helm test hook
 # (`helm test RELEASE`) after installing the chart. It quickly verifies
 # that writing and reading metrics works. Currently not supported for
 # installations using GEM token-based authentication.
 smoke_test:
+  # -- Allows to override the container image of the smoke-test component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
   image:
-    repository: grafana/mimir-continuous-test
-    tag: 2.12.0
-    pullPolicy: IfNotPresent
+    # repository: grafana/mimir
+    # tag: 2.16.0
+  # -- Controls the backoffLimit on the Kubernetes Job. The Job is marked as failed after that many retries.
+  backoffLimit: 5
+  # The image section has been removed as continuous test is now a module of the regular Mimir image.
+  # See settings for the image at the top image section.
   tenantId: ""
   extraArgs: {}
   env: []
   extraEnvFrom: []
   annotations: {}
   initContainers: []
+  resources: {}
   # -- The name of the PriorityClass for smoke-test pods
   priorityClassName: null
 
@@ -3887,14 +4817,21 @@ smoke_test:
 # https://grafana.com/docs/mimir/latest/manage/tools/mimir-continuous-test/
 continuous_test:
   enabled: false
+  # -- Allows to override the container image of the continuous-test component.
+  # When set it takes precedence over what is defined in global "image" or "enterprise.image" sections.
+  image:
+    # repository: grafana/mimir-continuous-test
+    # tag: 2.16.0
   # -- Number of replicas to start of continuous test
   replicas: 1
-  image:
-    repository: grafana/mimir-continuous-test
-    tag: 2.12.0
-    pullPolicy: IfNotPresent
-    # Note: optional pullSecrets are set in toplevel 'image' section, not here
-
+  # The image section has been removed as continuous test is now a module of the regular Mimir image.
+  # See settings for the image at the top image section.
+  # -- The endpoints to use for writing to and reading metrics from your instance.
+  # Defaults to the gateway URL, but you may want to test from an external ingress which you can configure here.
+  ## -- Mimir Write Endpoint to use for writing metrics to your instance. Defaults to mimir.gatewayUrl if not set.
+  write:
+  # -- Mimir Read Endpoint to use for querying metrics from your instance. Defaults to mimir.gatewayUrl if not set. Path /prometheus is appended to value.
+  read:
   # -- Authentication settings of continuous test
   auth:
     # -- Type of authentication to use (tenantId, basicAuth, bearerToken)
@@ -3922,6 +4859,9 @@ continuous_test:
   # -- The SecurityContext for continuous test containers
   containerSecurityContext:
     readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
   # -- Extra environment variables for continuous test containers
   env: []
   # -- Extra command line arguments for the continuous test container
@@ -3956,6 +4896,7 @@ continuous_test:
   service:
     annotations: {}
     labels: {}
+    extraPorts: []
   # -- Upgrade strategy for the continuous test Deployment
   strategy:
     type: RollingUpdate
@@ -3974,4 +4915,13 @@ continuous_test:
 #     name: extra-cm-{{ .Release.Name }}
 #   data: |
 #     extra.yml: "does-my-install-need-extra-info: true"
+# alternatively, you can use strings, which lets you use the mimir defines:
+# extraObjects:
+# - |
+#   kind: ConfigMap
+#   apiVersion: v1
+#   metadata:
+#     name: extra-cm-{{ .Release.Name }}
+#   data: |
+#     extra.yml: "{{ include some-mimir-define }}"
 extraObjects: []

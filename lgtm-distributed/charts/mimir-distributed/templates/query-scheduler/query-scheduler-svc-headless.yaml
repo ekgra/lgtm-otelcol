@@ -1,4 +1,4 @@
-{{- if .Values.query_scheduler.enabled }}
+{{- if and .Values.query_scheduler.enabled (not .Values.federation_frontend.disableOtherComponents) }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -25,6 +25,9 @@ spec:
       protocol: TCP
       name: grpc
       targetPort: grpc
+    {{- if .Values.query_scheduler.service.extraPorts }}
+    {{- toYaml .Values.query_scheduler.service.extraPorts | nindent 4 }}
+    {{- end }}
   selector:
     {{- include "mimir.selectorLabels" (dict "ctx" . "component" "query-scheduler") | nindent 4 }}
 {{- end }}

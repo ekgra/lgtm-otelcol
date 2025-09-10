@@ -21,9 +21,9 @@ dependencies:
   version: 7.3.12
 - alias: loki
   condition: loki.enabled
-  name: loki-distributed
-  repository: file://charts/loki-distributed
-  version: 0.79.0
+  name: loki
+  repository: file://charts/loki
+  version: 6.9.0
 - alias: mimir
   condition: mimir.enabled
   name: mimir-distributed
